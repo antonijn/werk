@@ -1,0 +1,114 @@
+                     _ 
+  __      _____ _ __| | __
+  \ \ /\ / / _ \ '__| |/ /
+   \ V  V /  __/ |  |   < 
+    \_/\_/ \___|_|  |_|\_\
+                        
+
+Werk is a minimalistic (but not bare-bones) text editor. The core
+concepts can be found in the file CONCEPT, this file simply serves as a
+progress report for the time being, as well as a basic user guide.
+
+   ___      _ _    _ _
+  | _ )_  _(_) |__| (_)_ _  __ _
+  | _ \ || | | / _` | | ' \/ _` |
+  |___/\_,_|_|_\__,_|_|_||_\__, |
+                           |___/
+
+  $ make
+
+To run:
+
+  $ ./werk FILE...
+
+  __      ___         _                    _       ___
+  \ \    / / |_  __ _| |_  __ __ _____ _ _| |__ __|__ \
+   \ \/\/ /| ' \/ _` |  _| \ V  V / _ \ '_| / /(_-< /_/
+    \_/\_/ |_||_\__,_|\__|  \_/\_/\___/_| |_\_\/__/(_)
+
+  ~ Text editing (src/edit.c)
+    ✔ Inserting (enter insert at selection start [a], finish [i])
+    ✔ Deleting [d]
+    ✔ Customizable tab behaviour {text.indentation}
+    ✔ Customizable tab-width {text.tab-width}
+    ✘ Recognize indentation on newline
+    ✘ Insert matching bracket
+    ✘ Copy/paste
+    ✘ Undo/redo
+
+  ~ Navigation (src/edit.c)
+    ✔ General selection mode (Ctrl-[)
+    ✔ Select line above [k], below [j]
+    ✔ Expand selection line up [K]
+    ✔ Move cursor to left [h], right [l]
+    ✔ Expand selection to char left [H], right [L]
+    ✘ Language-dependent mode behaviour
+    ✘ Parameter selection mode
+    ✘ Block selection mode
+    ✘ Paragraph selection mode
+    ✘ Token selection mode
+    ✘ Word selection mode
+    ✘ Char selection mode
+
+  ~ Editor (src/edit.c, src/gtk.c, src/ncurses.c)
+    ✔ Multiple buffers (switch using [.], [/])
+    ✔ Saving (Ctrl-S)
+    ✔ Line numbers {editor.line-numbers = true/false}
+    ✔ Show invisible characters
+        {editor.show-invisibles = all/none/tabs,spaces,newlines}
+    ✔ Color schemes {editor.colors.*}
+    ✘ Syntax highlighting
+    ✘ Scroll bar
+    ✘ Buffer overview
+    ✘ Language detection
+    ✘ NCurses UI
+
+  ~ Selection piping (src/edit.c, src/gap.c)
+    ✔ Basic selection piping (Ctrl-D)
+    ✘ Command error reporting
+    ✘ Custom shells (everything uses /bin/sh)
+    ✘ Custom PATH (useful for adding text-tools, for instance)
+    ✘ Setting SRC_LANG to appropriate programming language string
+    ✘ Setting SRC_INDENT to appropriate indentation string
+    ✘ Bash tab completion
+
+  ~ Configuration (src/configfile.c, src/config.c, src/sparsef.c)
+    ✔ Sane default configuration (src/config.c)
+    ✔ User-specific configuration ($HOME/.config/werk/user.conf)
+    ✔ Comments
+    ✔ Option categories
+    ✔ String options
+    ✔ Boolean options
+    ✔ Flag options (e.g. `editor.show-invisibles = tabs, spaces')
+    ~ Color options
+      ✔ RGB
+      ✘ HSV
+    ✘ System-wide configuration (/usr/share/werk/system.conf)
+    ✘ @version directive
+    ✘ @inherit directive
+
+
+Example of a configuration file:
+
+  [text]
+  # default is `indentation = tabs'
+  indentation = 4 spaces
+
+  [editor]
+  line-numbers = false
+  show-invisibles = tabs, spaces
+
+  # the following are simply the defaults for insert mode
+  # editor.colors.insert is also available
+  [editor.colors.select]
+  background = rgb(209, 252, 255)
+  foreground = rgb(74, 74, 74)
+  invisibles = rgb(150, 150, 150)
+  selection = rgb(237, 254, 255)
+  line-numbers.background = rgb(209, 252, 255)
+  # the following would be equivalent to the above line:
+  #
+  #   [editor.colors.insert.line-numbers]
+  #   background = rgb(209, 252, 255)
+  #
+

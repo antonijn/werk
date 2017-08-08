@@ -1,0 +1,247 @@
+
+							antonijn, 2017
+
+ 	 ___     _               _         _   _
+	|_ _|_ _| |_ _ _ ___  __| |_  _ __| |_(_)___ _ _
+ 	 | || ' \  _| '_/ _ \/ _` | || / _|  _| / _ \ ' \
+	|___|_||_\__|_| \___/\__,_|\_,_\__|\__|_\___/_||_|
+
+
+	Because all other text editors suck (although
+	some have at least a few good ideas), I decided
+	to write my own. Its working name is 'werk'. It
+	combines ideas from vim, acme and sam.
+
+	If you have any ideas or suggestions, please
+	contact me through one of the contact options
+	given at https://antonijn.github.io/.
+
+   _         ___          _                              _
+  / |  ___  | _ ) __ _ __(_)__   __ ___ _ _  __ ___ _ __| |_
+  | | |___| | _ \/ _` (_-< / _| / _/ _ \ ' \/ _/ -_) '_ \  _|
+  |_|       |___/\__,_/__/_\__| \__\___/_||_\__\___| .__/\__|
+                                                   |_|
+
+
+		1.1 STRUCTURAL NAVIGATION
+
+It's supposed to be a hybrid structure/text-editor, with
+insertion/deletion like a text editor (think: vim), but navigation like
+a structure editor (think: acme but with key commands for structure
+navigation).
+
+Take for instance the following line:
+
+	foo = bar(qux(), quux());
+	^
+You realise that 'quux()' needs an argument, namely 'NULL'. Your cursor
+is currently at '^'.
+
+You press a key to go into "parameter selection mode" (say 'p'):
+
+	foo = bar(qux(), quux());
+	          ^~~~~
+You traverse to the next parameter (say '.'):
+
+	foo = bar(qux(), quux());
+	                 ^~~~~~
+You press the parameter selection key again:
+
+	foo = bar(qux(), quux());
+	                      ^
+You enter insert mode and type 'NULL' (say 'iNULL'):
+
+	foo = bar(qux(), quux(NULL));
+	                          |
+
+My hypothesis is that this will be much more intuitive than traditional
+word/ paragraph/search based navigation.
+
+
+		1.2 PIPING
+
+Instead of providing a myriad of advanced commands like vim (every key has
+on average more than two functions) or emacs (https://xkcd.com/378/), most
+of werk's commands should be based on navigation, not on actual editing.
+Editing should be done by external programs, through which you can pipe
+selections (akin to vim's «:'<,'>!program-name'» ex-command, but about
+five orders of magnitude less clunky).
+
+The editor would come with a variety of programs with short and sweet
+names (they won't be added to your PATH by default, don't worry), which
+function like traditional vim/emacs commands/functions would. Say you've
+been doing too much C#/Java programming and accidentally typed 'null'
+instead of 'NULL'.  In vim you'd enter visual mode, select the text and
+press '~'. In werk, you select the text, press something to indicate you
+want to type a command (say <C-x>), a small non-intrusive pop-up text
+bar appears right below the selection to minimise eye movement *cough* vi
+ex-mode *cough*, in which you can write 'up', press enter, and that's it.
+
+There's another program 'lic' which simply spits out license text,
+commented in a language of your choice, which you can run at the top
+of your document.  There would be another program 'u', which outputs
+a Unicode character based on its arguments: 'u ae' -> 'æ', etc. For
+find/replace there's 'sed'. You could use 'fmt' to format plain text
+documents.
+
+This would greatly simplify the core editor, thereby adhering to the Unix
+philosophy. It would also allow the user to quickly write the programs
+they need themselves, and combine them into suites to redistribute.
+
+Most programs delivered with the program would probably be written
+in Python.
+
+   ___         ___      _        _ _
+  |_  )  ___  |   \ ___| |_ __ _(_) |___
+   / /  |___| | |) / -_)  _/ _` | | (_-<
+  /___|       |___/\___|\__\__,_|_|_/__/
+
+
+		2.1 STRUCURE NAVIGATION
+
+Structure navigation poses a problem on malformed syntax. It could *maybe*
+fall-back to an indentation-based syntax system for multiline structures,
+but it is in general quite a challenge. Perhaps [debatable] the user would
+instinctively revert to line/paragraphs/token/character-based navigation,
+because those facilities are also provided.
+
+
+		2.2 UI
+
+There would be the compile-time choice of including a GTK+-3 GUI
+interface and/or an NCurses interface. The GTK+-3 interface being my
+preferred choice.  I think using a GUI would greatly decrease terminal
+lag and could remove a lot of weight from the feeling of the editor.
+
+	2.2.1 Colours
+
+The colour scheme would of course be customisable, but by default its
+insert mode colours would be a light solarized theme and its normal
+mode colours would be icy blue. This allows the user to know quickly
+what mode their in, even when they've alt-tabbed. Technically speaking
+vim also allows you to see your mode by putting a tiny '-- INSERT --'
+label to the very bottom of your screen, where you never ever look -
+save for when you're in ex-mode when '-- INSERT --' is not displayed...
+
+I've considered more subtle changes like changing the caret shape, but
+I think block cursors are unintuitive (a cursor is intuitively between
+two characters), and that change would perhaps be too subtle, since you
+rarely _really_ look at a cursor anyway. The colour change idea appears
+to be subtle enough in practice [debatable].
+
+The whole editor should feel intuitive and shouldn't feel like everything
+takes a lot of effort, as is my feeling about vim. One extremely important
+principle is therefore minimising eye movement. This is respresented
+through the "colour change indicating mode switch" idea, and by placing
+the command field pop-up as close to the cursor as possible - or at
+least to the place where the user is probably looking [debatable].
+
+The command field pop-up will also expand to show stderr output (stylized
+as a warning if status=0, or as an error otherwise). The pop-up can
+be exited either by entering a command that executes flawlessly, or
+by pressing the same key combination that gets you from insert mode to
+normal mode.
+
+The text editor will provide syntax highlighting [semi-longterm].
+
+	2.2.2 Tiling
+
+I think the text editor should implement a tiling system very similar
+to vim's [semi-longterm].
+
+	2.2.3 Built-in Terminal Tiles
+
+Not for now. I think that <C-z> and <Alt-\t> should do for now. Besides,
+built-in terminals tend not to mix well with the concept of a modal editor
+(look at NeoVim) [debatable].
+
+
+		2.3 PIPING
+
+Of course one command should allow piping of the current selection (and
+I see no reason why that shouldn't also be allowed in insert mode for
+output-only commands). However, some terminal commands could possibly
+also be used for information or navigation. For instance: grep could
+show the location of a regular expression - which the text editor could
+use to navigate to, wc could show the amount of characters currently in
+the document.
+
+It would be cumbersome to have your entire selection replaced by the
+output of these commands. It would instead be nicer if these commands
+could use another command prompt, using a key combination different
+from but similar to the regular piping prompt command. How the output
+of these commands could then be used for navigation, I don't know yet.
+
+
+		2.4 CUSTOMIZATION
+
+Internal editor settings should be minimal, but colour schemes and
+possibly key combinations etc. would be modified either through Lua code
+or simple config files.
+
+
+		2.5 PLUGINS
+
+Despite the use of external programs through piping, some plugins may be
+desired [debatable]. For instance, a plugin may be written to connect
+the editor to a syntax-completion engine. I haven no idea how I would
+go about implementing such a plugin system [longterm].
+
+   ____        ___            _                   _        _   _
+  |__ /  ___  |_ _|_ __  _ __| |___ _ __  ___ _ _| |_ __ _| |_(_)___ _ _
+   |_ \ |___|  | || '  \| '_ \ / -_) '  \/ -_) ' \  _/ _` |  _| / _ \ ' \
+  |___/       |___|_|_|_| .__/_\___|_|_|_\___|_||_\__\__,_|\__|_\___/_||_|
+                        |_|
+
+
+		3.1 LANGUAGE & TOOLKIT
+
+te will be written in C. The helper programs will be written in Python/Lua
+and Bash/Sh. The POSIX APIs will be used for piping etc.
+
+GTK+-3.0 is used for basic cross-platform windows, Cairo for widget
+drawing and Pango for text rendering. There is of course also the
+NCurses interface.
+
+
+		3.2 LICENSE
+
+The core editor will be GPLv2 licensed. Most text manipulation programs
+will probably be ISC/MIT licensed.
+
+
+		3.3 BUFFER
+
+Text buffers are done using the gap buffer idea as is done in emacs
+(https://www.wikipedia.org/wiki/Gap_buffer). This means okay memory
+consumption and hopefully unnoticable logical cursor movement (the screen
+cursor and logical cursor may not always coincide).
+
+Piping can be done in place, piping text to a program while simultaneously
+trying to catch up with said programs output.
+
+
+		3.4 UNDO/REDO
+
+There will be an infinite capacity undo buffer like in vim. This can be
+done space-efficiently in the following way [debatable].
+
+The undo/redo tree is split in two sections, the past and the future:
+the past being the undo tree and the future being the redo tree. The
+past tree's nodes would merely contain the _locations_ of where text was
+entered, and the full text that was deleted, in a diff-like format. The
+future tree's nodes are exactly the opposite: the locations of where
+text was removed and the precide text that was inserted. This is all
+that is logically needed to reconstruct any past/future from the present.
+
+Note that two past nodes (or two future nodes for that matter) may be
+merged together (not by the user, but internally, when a new past node
+is being constructed).
+
+
+		3.5 SYNTAX HIGHLIGHTING
+
+Syntax highlighting by regular expressions simply doesn't work, and is
+probably very slow. Hand-writing parsers on the other hand takes an awful
+lot of effort, and may inhibit customization. Perhaps just delimiter/word
+based highlighting to start off with.
