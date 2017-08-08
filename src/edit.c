@@ -142,7 +142,8 @@ static bool grapheme_is_newline(const char *str, size_t len)
 	}
 }
 
-static int grapheme_width(const char *str, size_t n, int col, int tab_width)
+static int
+grapheme_width(const char *str, size_t n, int col, int tab_width)
 {
 	if (n == 1 && str[0] == '\t') {
 		int dest_col = (1 + (col - 1) / tab_width) * tab_width;
@@ -157,7 +158,8 @@ static int grapheme_width(const char *str, size_t n, int col, int tab_width)
 	return uc_width(base, "C");
 }
 
-static int grapheme_column(Buffer *buf, gbuf_offs ofs)
+static int
+grapheme_column(Buffer *buf, gbuf_offs ofs)
 {
 	const char *bufstop = buf->gbuf.start;
 
@@ -193,7 +195,8 @@ static int grapheme_column(Buffer *buf, gbuf_offs ofs)
 	return res;
 }
 
-static int marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
+static int
+marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 {
 	const char *s;
 	size_t len;
@@ -220,7 +223,8 @@ static int marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker
 	return 0;
 }
 
-static int marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
+static int
+marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 {
 	const char *s;
 	size_t len;
@@ -245,7 +249,8 @@ static int marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker
 	return 0;
 }
 
-static void marker_next_line(Buffer *buf, BufferMarker *res)
+static void
+marker_next_line(Buffer *buf, BufferMarker *res)
 {
 	const char *str;
 	size_t len;
@@ -255,7 +260,8 @@ static void marker_next_line(Buffer *buf, BufferMarker *res)
 			break;
 }
 
-static void marker_start_of_line(Buffer *buf, BufferMarker *res)
+static void
+marker_start_of_line(Buffer *buf, BufferMarker *res)
 {
 	const char *str;
 	size_t len;
@@ -266,7 +272,8 @@ static void marker_start_of_line(Buffer *buf, BufferMarker *res)
 	} while (marker_prev(buf, &str, &len, res) == 0);
 }
 
-static void marker_end_of_line(Buffer *buf, BufferMarker *res)
+static void
+marker_end_of_line(Buffer *buf, BufferMarker *res)
 {
 	BufferMarker prev;
 	const char *str;
@@ -280,7 +287,8 @@ static void marker_end_of_line(Buffer *buf, BufferMarker *res)
 	}
 }
 
-static void marker_sort_pair(BufferMarker *a, BufferMarker *b)
+static void
+marker_sort_pair(BufferMarker *a, BufferMarker *b)
 {
 	if (a->offset >= b->offset) {
 		BufferMarker temp = *a;
@@ -289,13 +297,15 @@ static void marker_sort_pair(BufferMarker *a, BufferMarker *b)
 	}
 }
 
-static void buf_delete_range(Buffer *buf, BufferMarker a, BufferMarker b)
+static void
+buf_delete_range(Buffer *buf, BufferMarker a, BufferMarker b)
 {
 	marker_sort_pair(&a, &b);
 	gbuf_delete_text(&buf->gbuf, a.offset, b.offset - a.offset);
 }
 
-static void buf_move_cursor(Buffer *buf, int delta, bool extend)
+static void
+buf_move_cursor(Buffer *buf, int delta, bool extend)
 {
 	if (delta > 0) {
 
@@ -314,7 +324,8 @@ static void buf_move_cursor(Buffer *buf, int delta, bool extend)
 		buf->sel_start = buf->sel_finish;
 }
 
-static void buf_pipe_selection(Buffer *buf, const char *str)
+static void
+buf_pipe_selection(Buffer *buf, const char *str)
 {
 	gbuf_offs start = buf->sel_start.offset;
 	gbuf_offs stop = buf->sel_finish.offset;
@@ -370,7 +381,8 @@ buf_insert_input_string(Buffer *buf, const char *input, size_t len)
 	return;
 }
 
-static void buf_move_viewport(Buffer *buf, int wlines, int hlines)
+static void
+buf_move_viewport(Buffer *buf, int wlines, int hlines)
 {
 	BufferMarker marker = buf->sel_finish;
 
@@ -411,7 +423,8 @@ static void buf_move_viewport(Buffer *buf, int wlines, int hlines)
 	}
 }
 
-static int num_width(int i)
+static int
+num_width(int i)
 {
 	int res = 1;
 
@@ -427,7 +440,8 @@ static int num_width(int i)
 
 	return res;
 }
-static void buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlines)
+static void
+buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlines)
 {
 	int line_num_width = num_width(buf->vp_orig_line + hlines);
 
@@ -443,7 +457,8 @@ static void buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlin
 }
 
 /* des_w: desired width */
-static void draw_line_num(Drawer *d, int n, int x, int y, int des_w)
+static void
+draw_line_num(Drawer *d, int n, int x, int y, int des_w)
 {
 	char ch;
 
@@ -534,7 +549,8 @@ buf_draw_line(Buffer *buf,
 	return true;
 }
 
-static void buf_draw_selection(Buffer *buf, Drawer *d, int vw, int vh, int offset_x)
+static void
+buf_draw_selection(Buffer *buf, Drawer *d, int vw, int vh, int offset_x)
 {
 	if (buf_is_selection_degenerate(buf))
 		return;
@@ -567,7 +583,8 @@ static void buf_draw_selection(Buffer *buf, Drawer *d, int vw, int vh, int offse
 	}
 }
 
-static void buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
+static void
+buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 {
 	buf_move_viewport(buf, wlines, hlines);
 
@@ -613,7 +630,8 @@ static void buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 	drw_place_caret(d, cur_x, cur_y, true);
 }
 
-static void buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *y)
+static void
+buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *y)
 {
 	int vw, vh;
 	buf_get_viewport(buf, &vw, &vh, w, h);
@@ -783,7 +801,8 @@ static Mode *nm_on_delete_press(Mode *mode, KeyMods mods);
 
 static Mode *im_init(NormalMode *nm_parent);
 
-static Mode *nm_init(Buffer *buf)
+static Mode *
+nm_init(Buffer *buf)
 {
 	NormalMode *nmode = malloc(sizeof(NormalMode));
 	Mode *mode = &nmode->base;
@@ -801,7 +820,8 @@ static Mode *nm_init(Buffer *buf)
 	return mode;
 }
 
-static void select_next_line(Buffer *buf, bool extend)
+static void
+select_next_line(Buffer *buf, bool extend)
 {
 	BufferMarker next_line = buf->sel_finish;
 	BufferMarker line_start = next_line;
@@ -815,7 +835,8 @@ static void select_next_line(Buffer *buf, bool extend)
 	}
 }
 
-static void select_prev_line(Buffer *buf, bool extend)
+static void
+select_prev_line(Buffer *buf, bool extend)
 {
 	BufferMarker line_start = buf->sel_finish;
 
@@ -829,7 +850,8 @@ static void select_prev_line(Buffer *buf, bool extend)
 	buf->sel_start = next_line;
 }
 
-static Mode *nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
+static Mode *
+nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
 {
 	NormalMode *nmode = mode->data;
 	Buffer *buf = nmode->buf;
@@ -899,17 +921,20 @@ static Mode *nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t
 	return mode;
 }
 
-static Mode *nm_on_enter_press(Mode *mode, KeyMods mods)
+static Mode *
+nm_on_enter_press(Mode *mode, KeyMods mods)
 {
 	return mode;
 }
 
-static Mode *nm_on_backspace_press(Mode *mode, KeyMods mods)
+static Mode *
+nm_on_backspace_press(Mode *mode, KeyMods mods)
 {
 	return mode;
 }
 
-static Mode *nm_on_delete_press(Mode *mode, KeyMods mods)
+static Mode *
+nm_on_delete_press(Mode *mode, KeyMods mods)
 {
 	return mode;
 }
@@ -925,7 +950,8 @@ static Mode *im_on_enter_press(Mode *mode, KeyMods mods);
 static Mode *im_on_backspace_press(Mode *mode, KeyMods mods);
 static Mode *im_on_delete_press(Mode *mode, KeyMods mods);
 
-static Mode *im_init(NormalMode *nm_parent)
+static Mode *
+im_init(NormalMode *nm_parent)
 {
 	InsertMode *imode = malloc(sizeof(InsertMode));
 	Mode *mode = &imode->base;
@@ -944,7 +970,8 @@ static Mode *im_init(NormalMode *nm_parent)
 	return mode;
 }
 
-static Mode *im_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
+static Mode *
+im_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
 {
 	InsertMode *imode = mode->data;
 
@@ -983,7 +1010,8 @@ static Mode *im_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t
 	return mode;
 }
 
-static Mode *im_on_enter_press(Mode *mode, KeyMods mods)
+static Mode *
+im_on_enter_press(Mode *mode, KeyMods mods)
 {
 	InsertMode *imode = mode->data;
 	Buffer *buf = imode->buf;
@@ -992,7 +1020,8 @@ static Mode *im_on_enter_press(Mode *mode, KeyMods mods)
 	return mode;
 }
 
-static Mode *im_on_backspace_press(Mode *mode, KeyMods mods)
+static Mode *
+im_on_backspace_press(Mode *mode, KeyMods mods)
 {
 	InsertMode *imode = mode->data;
 	gbuf_offs cur = imode->buf->sel_finish.offset;
@@ -1001,7 +1030,8 @@ static Mode *im_on_backspace_press(Mode *mode, KeyMods mods)
 	return mode;
 }
 
-static Mode *im_on_delete_press(Mode *mode, KeyMods mods)
+static Mode *
+im_on_delete_press(Mode *mode, KeyMods mods)
 {
 	return mode;
 }
@@ -1012,7 +1042,8 @@ static Mode *im_on_delete_press(Mode *mode, KeyMods mods)
  * \___\__,_|_|\__\___/_|    \_/\_/|_|_||_\__,_\___/\_/\_/ 
  */
 
-static void werk_on_key_press(Window *win, KeyMods mods, const char *input, size_t len)
+static void
+werk_on_key_press(Window *win, KeyMods mods, const char *input, size_t len)
 {
 	WerkInstance *werk = win->user_data;
 	Buffer *active_buf = werk->active_buf;
@@ -1027,7 +1058,8 @@ static void werk_on_key_press(Window *win, KeyMods mods, const char *input, size
 	win_redraw(win);
 }
 
-static void werk_on_enter_press(Window *win, KeyMods mods)
+static void
+werk_on_enter_press(Window *win, KeyMods mods)
 {
 	WerkInstance *werk = win->user_data;
 	Buffer *active_buf = werk->active_buf;
@@ -1042,7 +1074,8 @@ static void werk_on_enter_press(Window *win, KeyMods mods)
 	win_redraw(win);
 }
 
-static void werk_on_backspace_press(Window *win, KeyMods mods)
+static void
+werk_on_backspace_press(Window *win, KeyMods mods)
 {
 	WerkInstance *werk = win->user_data;
 	Buffer *active_buf = werk->active_buf;
@@ -1057,7 +1090,8 @@ static void werk_on_backspace_press(Window *win, KeyMods mods)
 	win_redraw(win);
 }
 
-static void werk_on_draw(Window *win, Drawer *d, int wlines, int hlines)
+static void
+werk_on_draw(Window *win, Drawer *d, int wlines, int hlines)
 {
 	WerkInstance *werk = win->user_data;
 	Buffer *active_buf = werk->active_buf;
@@ -1067,7 +1101,8 @@ static void werk_on_draw(Window *win, Drawer *d, int wlines, int hlines)
 	buf_draw(active_buf, d, wlines, hlines);
 	draw_cmd_dialog(active_buf, d, wlines, hlines);
 }
-static void werk_on_close(Window *win)
+static void
+werk_on_close(Window *win)
 {
 	WerkInstance *werk = win->user_data;
 	/* TODO: free contents of instance */
@@ -1113,7 +1148,8 @@ werk_add_file(WerkInstance *werk, const char *path)
 	return buf;
 }
 
-void werk_init(Window *win, const char **files, int num_files)
+void
+werk_init(Window *win, const char **files, int num_files)
 {
 	WerkInstance *werk = malloc(sizeof(WerkInstance));
 	memset(werk, 0, sizeof(*werk));

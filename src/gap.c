@@ -9,7 +9,8 @@
 #include <unigbrk.h>
 
 /* for debugging purposes */
-static void gbuf_debug_dump(GapBuf *gbuf)
+static void
+gbuf_debug_dump(GapBuf *gbuf)
 {
 	fprintf(stderr, "**********\n");
 	fprintf(stderr, "start:     %p\n", gbuf->start);
@@ -43,7 +44,8 @@ static void gbuf_debug_dump(GapBuf *gbuf)
  *
  * get_new_size(0, 0) represents the initial buffer size.
  */
-static size_t get_new_size(size_t prev, size_t req)
+static size_t
+get_new_size(size_t prev, size_t req)
 {
 	/*
 	 * This resizing strategy grows the buffer by a kibibyte every time
@@ -78,7 +80,8 @@ static size_t get_new_size(size_t prev, size_t req)
 	return prev;
 }
 
-void gbuf_init(GapBuf *buf)
+void
+gbuf_init(GapBuf *buf)
 {
 	size_t bsize = get_new_size(0, 0);
 	buf->start = malloc(bsize);
@@ -86,12 +89,14 @@ void gbuf_init(GapBuf *buf)
 	buf->size = buf->gap_size = bsize;
 }
 
-void gbuf_destroy(GapBuf *buf)
+void
+gbuf_destroy(GapBuf *buf)
 {
 	free(buf->start);
 }
 
-int gbuf_resize(GapBuf *buf, size_t req)
+int
+gbuf_resize(GapBuf *buf, size_t req)
 {
 	size_t new_size = get_new_size(buf->size, req);
 	if (new_size == buf->size)
@@ -121,7 +126,8 @@ int gbuf_resize(GapBuf *buf, size_t req)
 	return 0;
 }
 
-int gbuf_auto_resize(GapBuf *buf)
+int
+gbuf_auto_resize(GapBuf *buf)
 {
 	return gbuf_resize(buf, buf->size - buf->gap_size);
 }
@@ -134,7 +140,8 @@ int gbuf_auto_resize(GapBuf *buf)
  *                           |___/
  */
 
-void gbuf_write(GapBuf *gbuf, FILE *out)
+void
+gbuf_write(GapBuf *gbuf, FILE *out)
 {
 	fwrite(gbuf->start, gbuf->gap_offs, 1, out);
 
@@ -143,7 +150,8 @@ void gbuf_write(GapBuf *gbuf, FILE *out)
 	fwrite(snd_part, snd_size, 1, out);
 }
 
-void gbuf_read(GapBuf *gbuf, FILE *in)
+void
+gbuf_read(GapBuf *gbuf, FILE *in)
 {
 	fseek(in, 0, SEEK_END);
 	long fsize = ftell(in);
@@ -158,7 +166,8 @@ void gbuf_read(GapBuf *gbuf, FILE *in)
 
 static void gbuf_move_cursor(GapBuf *buf, gbuf_offs pos);
 
-void gbuf_insert_text(GapBuf *buf, gbuf_offs cursor, const char *str, size_t len)
+void
+gbuf_insert_text(GapBuf *buf, gbuf_offs cursor, const char *str, size_t len)
 {
 	if (len > buf->gap_size)
 		gbuf_resize(buf, buf->size - buf->gap_size + len);
@@ -168,7 +177,8 @@ void gbuf_insert_text(GapBuf *buf, gbuf_offs cursor, const char *str, size_t len
 	buf->gap_offs += len;
 	buf->gap_size -= len;
 }
-void gbuf_backspace_grapheme(GapBuf *buf, gbuf_offs cursor)
+void
+gbuf_backspace_grapheme(GapBuf *buf, gbuf_offs cursor)
 {
 	if (cursor == 0)
 		return;
@@ -182,7 +192,8 @@ void gbuf_backspace_grapheme(GapBuf *buf, gbuf_offs cursor)
 
 	gbuf_auto_resize(buf);
 }
-void gbuf_delete_grapheme(GapBuf *buf, gbuf_offs cursor)
+void
+gbuf_delete_grapheme(GapBuf *buf, gbuf_offs cursor)
 {
 	if (cursor >= gbuf_len(buf))
 		return;
@@ -195,7 +206,8 @@ void gbuf_delete_grapheme(GapBuf *buf, gbuf_offs cursor)
 	buf->gap_size += n;
 	gbuf_auto_resize(buf);
 }
-void gbuf_delete_text(GapBuf *buf, gbuf_offs cursor, size_t len)
+void
+gbuf_delete_text(GapBuf *buf, gbuf_offs cursor, size_t len)
 {
 	if (cursor >= gbuf_len(buf))
 		return;
@@ -208,14 +220,16 @@ void gbuf_delete_text(GapBuf *buf, gbuf_offs cursor, size_t len)
 	gbuf_auto_resize(buf);
 }
 
-gbuf_offs ptr_to_offs(GapBuf *buf, const char *ptr)
+gbuf_offs
+ptr_to_offs(GapBuf *buf, const char *ptr)
 {
 	if (ptr >= buf->start + buf->gap_offs + buf->gap_size)
 		return (ptr - buf->gap_size) - buf->start;
 
 	return ptr - buf->start;
 }
-char *offs_to_ptr(GapBuf *buf, gbuf_offs offset)
+char *
+offs_to_ptr(GapBuf *buf, gbuf_offs offset)
 {
 	if (buf->start + offset < (buf->start + buf->gap_offs))
 		return buf->start + offset;
@@ -223,12 +237,14 @@ char *offs_to_ptr(GapBuf *buf, gbuf_offs offset)
 	return buf->start + offset + buf->gap_size;
 }
 
-const char *gbuf_get(GapBuf *buf, gbuf_offs offset)
+const char *
+gbuf_get(GapBuf *buf, gbuf_offs offset)
 {
 	return offs_to_ptr(buf, offset);
 }
 
-int gbuf_grapheme_next(GapBuf *buf, const char **str, size_t *size, gbuf_offs *offset)
+int
+gbuf_grapheme_next(GapBuf *buf, const char **str, size_t *size, gbuf_offs *offset)
 {
 	const char *gbuf_stop = buf->start + buf->size;
 	const char *ptr = gbuf_get(buf, *offset);
@@ -244,7 +260,8 @@ int gbuf_grapheme_next(GapBuf *buf, const char **str, size_t *size, gbuf_offs *o
 	*offset = ptr_to_offs(buf, nxt);
 	return 0;
 }
-int gbuf_grapheme_prev(GapBuf *buf, const char **str, size_t *size, gbuf_offs *offset)
+int
+gbuf_grapheme_prev(GapBuf *buf, const char **str, size_t *size, gbuf_offs *offset)
 {
 	const char *gbuf_stop = buf->start;
 	const char *ptr = (*offset == buf->gap_offs)
@@ -264,13 +281,15 @@ int gbuf_grapheme_prev(GapBuf *buf, const char **str, size_t *size, gbuf_offs *o
 	return 0;
 }
 
-void gbuf_strcpy(GapBuf *buf, char *dest, gbuf_offs offset, size_t len)
+void
+gbuf_strcpy(GapBuf *buf, char *dest, gbuf_offs offset, size_t len)
 {
 	for (int i = 0; i < len; ++i)
 		dest[i] = *gbuf_get(buf, offset + i);
 }
 
-static void gbuf_move_cursor(GapBuf *buf, gbuf_offs pos)
+static void
+gbuf_move_cursor(GapBuf *buf, gbuf_offs pos)
 {
 	if (pos == buf->gap_offs)
 		return;
@@ -311,7 +330,8 @@ static void gbuf_move_cursor(GapBuf *buf, gbuf_offs pos)
  * - pipes[1] <- stdout
  * - pipes[2] <- stderr
  */
-static pid_t opencmd(const char *cmd, int pipes[3])
+static pid_t
+opencmd(const char *cmd, int pipes[3])
 {
 	int in[2];
 	if (pipe(in) < 0)
@@ -389,11 +409,12 @@ out_fdin:
  *
  * Note that pipes[1] should be set to non-blocking reading.
  */
-static char *pipe_buf_unit(GapBuf *buf,
-                           int pipes[3],
-                           char *write_start,
-                           char *start,
-                           char *stop)
+static char *
+pipe_buf_unit(GapBuf *buf,
+             int pipes[3],
+             char *write_start,
+             char *start,
+             char *stop)
 {
 	const size_t max_bsize = 512;
 
@@ -429,7 +450,8 @@ static char *pipe_buf_unit(GapBuf *buf,
  * Pipe buffer text 'start' - 'stop' through command 'cmd', writing output
  * back to the buffer.
  */
-int gbuf_pipe(GapBuf *buf, const char *cmd, gbuf_offs start_offs, size_t len)
+int
+gbuf_pipe(GapBuf *buf, const char *cmd, gbuf_offs start_offs, size_t len)
 {
 	int ecode = 0;
 

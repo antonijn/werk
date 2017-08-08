@@ -43,17 +43,20 @@ struct cairo_drawer {
 	struct caret caret;
 };
 
-static void cairo_set_color(Drawer *d, RGB color)
+static void
+cairo_set_color(Drawer *d, RGB color)
 {
 	cairo_t *cr = ((struct cairo_drawer *)d->data)->cr;
 	cairo_set_source_rgb(cr, color.r / 255.0, color.g / 255.0, color.b / 255.0);
 }
-static void cairo_clear(Drawer *d)
+static void
+cairo_clear(Drawer *d)
 {
 	cairo_t *cr = ((struct cairo_drawer *)d->data)->cr;
 	cairo_paint(cr);
 }
-static void cairo_place_caret(Drawer *d, int x, int y, bool visible)
+static void
+cairo_place_caret(Drawer *d, int x, int y, bool visible)
 {
 	struct cairo_drawer *cd = d->data;
 	cairo_t *cr = cd->cr;
@@ -72,10 +75,11 @@ static void cairo_place_caret(Drawer *d, int x, int y, bool visible)
 
 	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 }
-static void cairo_draw_glyph(struct cairo_drawer *cd,
-                             int x, int y,
-                             bool bold, bool it,
-                             const char *str, size_t len)
+static void
+cairo_draw_glyph(struct cairo_drawer *cd,
+                 int x, int y,
+                 bool bold, bool it,
+                 const char *str, size_t len)
 {
 	ucs4_t base_char;
 	u8_mbtoucr(&base_char, str, len);
@@ -111,7 +115,8 @@ static void cairo_draw_glyph(struct cairo_drawer *cd,
 
 	cairo_set_matrix(cd->cr, &backup);
 }
-static void cairo_draw_text(Drawer *d, int x, int y, bool bold, bool it, const char *str, size_t len)
+static void
+cairo_draw_text(Drawer *d, int x, int y, bool bold, bool it, const char *str, size_t len)
 {
 	const char *end = str + len;
 	while (str != end) {
@@ -121,20 +126,23 @@ static void cairo_draw_text(Drawer *d, int x, int y, bool bold, bool it, const c
 		str = str_nxt;
 	}
 }
-static void cairo_fill_rect(Drawer *d, int x, int y, int w, int h)
+static void
+cairo_fill_rect(Drawer *d, int x, int y, int w, int h)
 {
 	struct cairo_drawer *cd = d->data;
 	cairo_rectangle(cd->cr, x * glyph_w, y * glyph_h, w * glyph_w, h * glyph_h);
 	cairo_fill(cd->cr);
 }
-static void cairo_stroke_rect(Drawer *d, int x, int y, int w, int h)
+static void
+cairo_stroke_rect(Drawer *d, int x, int y, int w, int h)
 {
 	struct cairo_drawer *cd = d->data;
 	cairo_rectangle(cd->cr, x * glyph_w, y * glyph_h, w * glyph_w, h * glyph_h);
 	cairo_stroke(cd->cr);
 }
 
-static Drawer *make_cairo_drawer(struct cairo_drawer *cd, cairo_t *cr)
+static Drawer *
+make_cairo_drawer(struct cairo_drawer *cd, cairo_t *cr)
 {
 	cd->cr = cr;
 	cd->layout = pango_cairo_create_layout(cr);
@@ -171,13 +179,15 @@ static Drawer *make_cairo_drawer(struct cairo_drawer *cd, cairo_t *cr)
 
 static Window *gtk_spawner_ex(void);
 
-static void on_commit(GtkIMContext *ctx, gchar *str, Window *window)
+static void
+on_commit(GtkIMContext *ctx, gchar *str, Window *window)
 {
 	if (window->on_key_press)
 		window->on_key_press(window, KM_NONE, str, strlen(str));
 }
 
-static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, Window *window)
+static gboolean
+on_key_press(GtkWidget *widget, GdkEventKey *event, Window *window)
 {
 	WindowData *wdata = window->data;
 
@@ -217,7 +227,8 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, Window *wind
 	return FALSE;
 }
 
-static gboolean on_focus_in(GtkWidget *widget, GdkEvent *event, Window *window)
+static gboolean
+on_focus_in(GtkWidget *widget, GdkEvent *event, Window *window)
 {
 	WindowData *wdata = window->data;
 	gtk_im_context_focus_in(wdata->im_ctx);
@@ -226,7 +237,8 @@ static gboolean on_focus_in(GtkWidget *widget, GdkEvent *event, Window *window)
 	return TRUE;
 }
 
-static gboolean on_focus_out(GtkWidget *widget, GdkEvent *event, Window *window)
+static gboolean
+on_focus_out(GtkWidget *widget, GdkEvent *event, Window *window)
 {
 	WindowData *wdata = window->data;
 	gtk_im_context_focus_out(wdata->im_ctx);
@@ -235,7 +247,8 @@ static gboolean on_focus_out(GtkWidget *widget, GdkEvent *event, Window *window)
 	return TRUE;
 }
 
-static gboolean on_draw(GtkWidget *widget, cairo_t *cr, Window *window)
+static gboolean
+on_draw(GtkWidget *widget, cairo_t *cr, Window *window)
 {
 	WindowData *wdata = window->data;
 
@@ -255,13 +268,15 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, Window *window)
 	return FALSE;
 }
 
-static void on_destroy(GtkWidget *widget, Window *window)
+static void
+on_destroy(GtkWidget *widget, Window *window)
 {
 	if (window->on_close)
 		window->on_close(window);
 }
 
-static void my_set_size(Window *win, int w, int h)
+static void
+my_set_size(Window *win, int w, int h)
 {
 	WindowData *wdata = win->data;
 
@@ -270,7 +285,8 @@ static void my_set_size(Window *win, int w, int h)
 
 	gtk_window_resize(GTK_WINDOW(wdata->window), wpix, hpix);
 }
-static void my_get_size(Window *win, int *w, int *h)
+static void
+my_get_size(Window *win, int *w, int *h)
 {
 	WindowData *wdata = win->data;
 
@@ -285,23 +301,27 @@ static void my_get_size(Window *win, int *w, int *h)
 	if (h)
 		*h = hlines;
 }
-static void my_show(Window *win)
+static void
+my_show(Window *win)
 {
 	WindowData *wdata = win->data;
 	gtk_widget_show_all(wdata->window);
 }
-static void my_close(Window *win)
+static void
+my_close(Window *win)
 {
 	WindowData *wdata = win->data;
 	gtk_window_close(GTK_WINDOW(wdata->window));
 }
-static void my_redraw(Window *win)
+static void
+my_redraw(Window *win)
 {
 	WindowData *wdata = win->data;
 	gtk_widget_queue_draw(wdata->darea);
 }
 
-static Window *gtk_spawner_ex(void)
+static Window *
+gtk_spawner_ex(void)
 {
 	WindowData *wdata = malloc(sizeof(WindowData));
 	memset(wdata, 0, sizeof(WindowData));
@@ -349,7 +369,8 @@ static Window *gtk_spawner_ex(void)
 	return result;
 }
 
-int werk_gtk_main(const char **filenames, int num_filenames)
+int
+werk_gtk_main(const char **filenames, int num_filenames)
 {
 	font = pango_font_description_from_string("Monospace 10");
 

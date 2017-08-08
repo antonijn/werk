@@ -138,11 +138,12 @@ config_read_line(ConfigFile *conf, const char *line)
 	return config_insert_key(conf, pre_eq, pre_eq_len, post_eq, post_eq_len);
 }
 
-static int config_insert_key(ConfigFile *conf,
-                             const char *key,
-                             size_t key_len,
-                             const char *val,
-                             size_t val_len)
+static int
+config_insert_key(ConfigFile *conf,
+                  const char *key,
+                  size_t key_len,
+                  const char *val,
+                  size_t val_len)
 {
 	size_t cat_len = strlen(conf->category);
 	char *real_key = malloc(key_len + cat_len + 2);

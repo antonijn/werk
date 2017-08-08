@@ -25,30 +25,36 @@ struct drawer {
 	                  const char *str, size_t len);
 };
 
-static inline void drw_set_color(Drawer *d, RGB color)
+static inline void
+drw_set_color(Drawer *d, RGB color)
 {
 	d->set_color(d, color);
 }
-static inline void drw_clear(Drawer *d)
+static inline void
+drw_clear(Drawer *d)
 {
 	d->clear(d);
 }
-static inline void drw_fill_rect(Drawer *d, int xa, int ya, int w, int h)
+static inline void
+drw_fill_rect(Drawer *d, int xa, int ya, int w, int h)
 {
 	d->fill_rect(d, xa, ya, w, h);
 }
-static inline void drw_stroke_rect(Drawer *d, int xa, int ya, int w, int h)
+static inline void
+drw_stroke_rect(Drawer *d, int xa, int ya, int w, int h)
 {
 	d->stroke_rect(d, xa, ya, w, h);
 }
-static inline void drw_place_caret(Drawer *d, int x, int y, bool visible)
+static inline void
+drw_place_caret(Drawer *d, int x, int y, bool visible)
 {
 	d->place_caret(d, x, y, visible);
 }
-static inline void drw_draw_text(Drawer *d,
-                                 int x, int y,
-                                 bool bold, bool it,
-                                 const char *str, size_t len)
+static inline void
+drw_draw_text(Drawer *d,
+              int x, int y,
+              bool bold, bool it,
+              const char *str, size_t len)
 {
 	d->draw_text(d, x, y, bold, it, str, len);
 }
@@ -84,23 +90,28 @@ struct window {
 	void (*redraw)(Window *win);
 };
 
-static inline void win_set_size(Window *win, int w, int h)
+static inline void
+win_set_size(Window *win, int w, int h)
 {
 	win->set_size(win, w, h);
 }
-static inline void win_get_size(Window *win, int *w, int *h)
+static inline void
+win_get_size(Window *win, int *w, int *h)
 {
 	win->get_size(win, w, h);
 }
-static inline void win_show(Window *win)
+static inline void
+win_show(Window *win)
 {
 	win->show(win);
 }
-static inline void win_close(Window *win)
+static inline void
+win_close(Window *win)
 {
 	win->close(win);
 }
-static inline void win_redraw(Window *win)
+static inline void
+win_redraw(Window *win)
 {
 	win->redraw(win);
 }

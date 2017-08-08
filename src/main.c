@@ -24,12 +24,14 @@ static const char *ui_mode =
 static const char **filenames;
 static size_t filename_count;
 
-static void usage(FILE *f)
+static void
+usage(FILE *f)
 {
 	fputs("usage: te [-i <ui mode>] <file>...\n", f);
 }
 
-static int validate_ui_mode(void)
+static int
+validate_ui_mode(void)
 {
 	const char *available[] = {
 #ifdef HAS_GTK
@@ -57,7 +59,8 @@ static int validate_ui_mode(void)
  * Return -1 on error, 0 on success, and 1 if the application should exit
  * cleanly
  */
-static int parse_opt(int *i, int argc, char **argv)
+static int
+parse_opt(int *i, int argc, char **argv)
 {
 	const char *arg = argv[*i];
 
@@ -98,7 +101,8 @@ static int parse_opt(int *i, int argc, char **argv)
 	return 0;
 }
 
-static int parse_args(int argc, char **argv)
+static int
+parse_args(int argc, char **argv)
 {
 	for (int i = 1; i < argc; ++i) {
 		if (argv[i][0] == '-') {
@@ -112,7 +116,8 @@ static int parse_args(int argc, char **argv)
 	return 0;
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
 	int ecode = 0;
 

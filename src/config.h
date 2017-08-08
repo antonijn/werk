@@ -26,7 +26,6 @@ typedef struct {
 } Config;
 
 void config_load_defaults(Config *cfg);
-
 void config_load(Config *cfg);
 
 #endif
