@@ -1,4 +1,5 @@
 #include "configfile.h"
+#include "sparsef.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -238,6 +239,78 @@ config_getb(ConfigFile *conf, const char *key, bool *value)
 	return true;
 }
 
+/*
+ * Magic algo pulled off the internet 😅
+ */
+static RGB
+hsv_to_rgb(int h_i, int s_i, int v_i)
+{
+	RGB res;
+
+	double r, g, b;
+
+	double h = h_i;
+	double s = s_i / 100.0;
+	double v = v_i / 100.0;
+
+	if (s == 0) {
+		r = g = b = v;
+		goto done;
+	}
+
+	double hh = h / 60.0;
+
+	int i = (int)hh;
+	double ff = hh - i;
+	double p = v * (1.0 - s);
+	double q = v * (1.0 - (s * ff));
+	double t = v * (1.0 - (s * (1.0 - ff)));
+
+	switch (i) {
+	case 0:
+		r = v;
+		g = t;
+		b = p;
+		break;
+
+	case 1:
+		r = q;
+		g = v;
+		b = p;
+		break;
+
+	case 2:
+		r = p;
+		g = v;
+		b = t;
+		break;
+
+	case 3:
+		r = p;
+		g = q;
+		b = v;
+		break;
+
+	case 4:
+		r = t;
+		g = p;
+		b = v;
+		break;
+
+	case 5:
+		r = v;
+		g = p;
+		b = q;
+		break;
+	}
+
+done:
+	res.r = (int)(r * 255);
+	res.g = (int)(g * 255);
+	res.b = (int)(b * 255);
+	return res;
+}
+
 bool
 config_get_color(ConfigFile *conf, const char *key, RGB *value)
 {
@@ -246,21 +319,38 @@ config_get_color(ConfigFile *conf, const char *key, RGB *value)
 	if (!config_get(conf, key, &str, &line))
 		return false;
 
+	int h, s, v;
+	if (!sparsef(str, "hsv(%d, %d, %d)", &h, &s, &v)) {
+		if (h < 0 || h >= 360 || s < 0 || s > 100 || v < 0 || v > 100) {
+			fprintf(stderr,
+			        "%s line %d: invalid hsv expression\n",
+			        conf->filename,
+			        line);
+			return false;
+		}
+
+		*value = hsv_to_rgb(h, s, v);
+		return true;
+	}
+
 	int r, g, b;
-	if (sscanf(str, "rgb(%d, %d, %d)", &r, &g, &b) < 3) {
-		fprintf(stderr, "%s line %d: expected rgb expression\n", conf->filename, line);
-		return false;
+	if (!sparsef(str, "rgb(%d, %d, %d)", &r, &g, &b)) {
+		if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
+			fprintf(stderr,
+			        "%s line %d: invalid rgb expression\n",
+			        conf->filename,
+			        line);
+			return false;
+		}
+
+		value->r = r;
+		value->g = g;
+		value->b = b;
+		return true;
 	}
 
-	if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
-		fprintf(stderr, "%s line %d: invalid rgb expression\n", conf->filename, line);
-		return false;
-	}
-
-	value->r = r;
-	value->g = g;
-	value->b = b;
-	return true;
+	fprintf(stderr, "%s line %d: expected rgb expression\n", conf->filename, line);
+	return false;
 }
 
 bool

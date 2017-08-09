@@ -80,9 +80,9 @@ To run:
     ✔ String options
     ✔ Boolean options
     ✔ Flag options (e.g. `editor.show-invisibles = tabs, spaces')
-    ~ Color options
+    ✔ Color options
       ✔ RGB
-      ✘ HSV
+      ✔ HSV
     ✘ System-wide configuration (/usr/share/werk/system.conf)
     ✘ @version directive
     ✘ @inherit directive
@@ -101,14 +101,14 @@ Example of a configuration file:
   # the following are simply the defaults for insert mode
   # editor.colors.insert is also available
   [editor.colors.select]
-  background = rgb(209, 252, 255)
-  foreground = rgb(74, 74, 74)
-  invisibles = rgb(150, 150, 150)
-  selection = rgb(237, 254, 255)
-  line-numbers.background = rgb(209, 252, 255)
+  background = hsv(184, 18, 100)
+  foreground = hsv(184, 18, 29)
+  invisibles = hsv(184, 18, 60)
+  selection = hsv(184, 9, 100)
+  line-numbers.background = hsv(184, 18, 100)
   # the following would be equivalent to the above line:
   #
   #   [editor.colors.insert.line-numbers]
-  #   background = rgb(209, 252, 255)
+  #   background = hsv(184, 18, 100)
   #
 
