@@ -176,6 +176,12 @@ make_cairo_drawer(struct cairo_drawer *cd, cairo_t *cr)
 	return &cd->d;
 }
 
+static void
+destroy_cairo_drawer(struct cairo_drawer *cd)
+{
+	g_object_unref(cd->layout);
+	g_object_unref(cd->act_font);
+}
 
 static Window *gtk_spawner_ex(void);
 
@@ -264,6 +270,8 @@ on_draw(GtkWidget *widget, cairo_t *cr, Window *window)
 
 		window->on_draw(window, d, wlines, hlines);
 	}
+
+	destroy_cairo_drawer(&cd);
 
 	return FALSE;
 }
