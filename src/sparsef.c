@@ -7,6 +7,8 @@
 int
 sparsef(const char *str, const char *fmt, ...)
 {
+	int ecode = 0;
+
 	va_list ap;
 	va_start(ap, fmt);
 
@@ -15,8 +17,10 @@ sparsef(const char *str, const char *fmt, ...)
 		str_ch = *str;
 
 		if (fmt_ch != '%') {
-			if (str_ch != fmt_ch)
-				return -1;
+			if (str_ch != fmt_ch) {
+				ecode = -1;
+				goto stop;
+			}
 
 			++str;
 			continue;
@@ -30,14 +34,18 @@ sparsef(const char *str, const char *fmt, ...)
 			char *end;
 			int base = (fmt_ch == 'x') ? 16 : 10;
 			*argp = strtol(str, &end, base);
-			if (errno == ERANGE)
-				return -1;
+			if (errno == ERANGE) {
+				ecode = -1;
+				goto stop;
+			}
 			str = end;
 			break;
 			  }
 		case '%': {
-			if (str_ch != '%')
-				return -1;
+			if (str_ch != '%') {
+				ecode = -1;
+				goto stop;
+			}
 			++str;
 			continue;
 			  }
@@ -45,7 +53,9 @@ sparsef(const char *str, const char *fmt, ...)
 	}
 
 	if (*str)
-		return -1;
+		ecode = -1;
 
-	return 0;
+stop:
+	va_end(ap);
+	return ecode;
 }
