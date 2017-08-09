@@ -66,6 +66,8 @@ struct werk_instance {
  *                                          |___/
  */
 
+static bool grapheme_is_newline(const char *str, size_t len);
+
 /* Next and prev graphemes */
 static int marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker);
 static int marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker);
@@ -79,6 +81,7 @@ static void marker_end_of_line(Buffer *buf, BufferMarker *marker);
 
 static void buf_init(Buffer *buf, WerkInstance *werk);
 
+static void buf_detect_newline(Buffer *buf);
 static bool buf_is_selection_degenerate(Buffer *buf);
 static void buf_move_cursor(Buffer *buf, int delta, bool extend);
 /* Calculate viewport so that the end of the selection is visible */
@@ -111,17 +114,55 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	                 = buf->sel_finish.col = 1;
 
 	buf->mode = nm_init(buf);
-	buf->eol = "\n";
-	buf->eol_size = 1;
+
+	/* is reset later using buf_detect_newline() */
+	buf->eol = werk->cfg.text.default_newline;
+	buf->eol_size = strlen(buf->eol);
 }
 
-static bool buf_is_selection_degenerate(Buffer *buf)
+static void
+buf_detect_newline(Buffer *buf)
+{
+	static const char *newlines[] = {
+		u8"\r\n", u8"\r", u8"\f", u8"\v",
+		u8"\xc2\x85", u8"\u2028", u8"\u2029",
+	};
+
+	gbuf_offs offs = 0;
+	const char *graph;
+	size_t graph_len;
+	while (!gbuf_grapheme_next(&buf->gbuf, &graph, &graph_len, &offs)) {
+		if (!grapheme_is_newline(graph, graph_len) || graph_len == 0)
+			continue;
+
+		/* the following loop is guaranteed to cause a return */
+		for (int i = 0; i < sizeof(newlines) / sizeof(newlines[0]); ++i) {
+			const char *nl = newlines[i];
+			size_t nl_size = strlen(nl);
+
+			if (strncmp(graph, nl, nl_size))
+				continue;
+
+			buf->eol = nl;
+			buf->eol_size = nl_size;
+			return;
+		}
+	}
+
+	const char *dflt = buf->werk->cfg.text.default_newline;
+	buf->eol = dflt;
+	buf->eol_size = strlen(dflt);
+}
+
+static bool
+buf_is_selection_degenerate(Buffer *buf)
 {
 	return buf->sel_start.offset == buf->sel_finish.offset;
 }
 
 /* All Unicode newlines are accepted */
-static bool grapheme_is_newline(const char *str, size_t len)
+static bool
+grapheme_is_newline(const char *str, size_t len)
 {
 	switch (len) {
 	case 1:
@@ -189,7 +230,7 @@ grapheme_column(Buffer *buf, gbuf_offs ofs)
 		size_t len;
 		gbuf_grapheme_next(&buf->gbuf, &graph, &len, &scan);
 
-		res += grapheme_width(graph, len, res, buf->werk->cfg.text.tab_width);
+		res += grapheme_width(graph, len, res, buf->werk->cfg.editor.tab_width);
 	}
 
 	return res;
@@ -212,7 +253,7 @@ marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 		++marker->line;
 		marker->col = 1;
 	} else {
-		marker->col += grapheme_width(s, len, marker->col, buf->werk->cfg.text.tab_width);
+		marker->col += grapheme_width(s, len, marker->col, buf->werk->cfg.editor.tab_width);
 	}
 
 	if (str)
@@ -529,7 +570,7 @@ buf_draw_line(Buffer *buf,
 		if (grapheme_is_newline(graph, len));
 			return true;
 
-		col += grapheme_width(graph, len, col, buf->werk->cfg.text.tab_width);
+		col += grapheme_width(graph, len, col, buf->werk->cfg.editor.tab_width);
 	}
 
 	while ((col - logic_x) < vw) {
@@ -538,7 +579,7 @@ buf_draw_line(Buffer *buf,
 		if (gbuf_grapheme_next(gbuf, &graph, &len, &ofs) == -1)
 			return false;
 
-		int w = grapheme_width(graph, len, col, buf->werk->cfg.text.tab_width);
+		int w = grapheme_width(graph, len, col, buf->werk->cfg.editor.tab_width);
 		buf_draw_grapheme(buf, d, x + (col - logic_x), y, w, graph, len);
 		col += w;
 
@@ -1114,7 +1155,7 @@ werk_add_buffer(WerkInstance *werk)
 {
 	Buffer *buf = malloc(sizeof(Buffer));
 	buf_init(buf, werk);
-	gbuf_insert_text(&buf->gbuf, 0, "\n", 1);
+	gbuf_insert_text(&buf->gbuf, 0, buf->eol, buf->eol_size);
 
 	Buffer *cur_active = werk->active_buf;
 	if (cur_active) {
@@ -1141,6 +1182,8 @@ werk_add_file(WerkInstance *werk, const char *path)
 		gbuf_read(&buf->gbuf, fin);
 		fclose(fin);
 	}
+
+	buf_detect_newline(buf);
 
 	/* TODO: strdup */
 	buf->filename = path;

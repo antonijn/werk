@@ -30,7 +30,8 @@ To run:
     ✔ Inserting (enter insert at selection start [a], finish [i])
     ✔ Deleting [d]
     ✔ Customizable tab behaviour {text.indentation}
-    ✔ Customizable tab-width {text.tab-width}
+    ✔ Customizable default newline {text.default-newline = unix/dos}
+    ✔ Automatic newline detection
     ✘ Recognize indentation on newline
     ✘ Insert matching bracket
     ✘ Copy/paste
@@ -54,6 +55,7 @@ To run:
     ✔ Multiple buffers (switch using [.], [/])
     ✔ Saving (Ctrl-S)
     ✔ Line numbers {editor.line-numbers = true/false}
+    ✔ Customizable tab-width {editor.tab-width}
     ✔ Show invisible characters
         {editor.show-invisibles = all/none/tabs,spaces,newlines}
     ✔ Color schemes {editor.colors.*}

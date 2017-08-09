@@ -17,11 +17,12 @@ typedef struct {
 	struct {
 		bool line_numbers;
 		bool show_newlines, show_spaces, show_tabs;
+		int tab_width;
 	} editor;
 
 	struct {
 		int indentation; /* 0 if using tabs */
-		int tab_width;
+		const char *default_newline;
 	} text;
 } Config;
 

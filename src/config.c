@@ -9,6 +9,7 @@
 #include <string.h>
 
 static bool get_indentation(ConfigFile *cfile, const char *key, int *value);
+static bool get_newline(ConfigFile *cfile, const char *key, const char **value);
 
 void
 config_load_defaults(Config *cfg)
@@ -26,8 +27,13 @@ config_load_defaults(Config *cfg)
 	cfg->colors.select.line_numbers_bg = (RGB){ 188, 227, 230 };
 	cfg->editor.line_numbers = true;
 	cfg->editor.show_tabs = cfg->editor.show_spaces = cfg->editor.show_newlines = false;
+	cfg->editor.tab_width = 8;
+#ifdef _WIN32
+	cfg->text.default_newline = "\r\n";
+#else
+	cfg->text.default_newline = "\n";
+#endif
 	cfg->text.indentation = 0;
-	cfg->text.tab_width = 8;
 }
 
 void
@@ -81,11 +87,12 @@ config_load(Config *conf)
 	                 "editor.colors.insert.line-numbers.background",
 	                 &conf->colors.insert.line_numbers_bg);
 	config_getb(cfile, "editor.line-numbers", &conf->editor.line_numbers);
+	config_geti(cfile, "editor.tab-width", &conf->editor.tab_width);
 	static const char *invs_names[] = { "tabs", "spaces", "newlines", NULL };
 	bool *invs_vals[] = { &conf->editor.show_tabs, &conf->editor.show_spaces, &conf->editor.show_newlines };
 	config_get_switches(cfile, "editor.show-invisibles", invs_names, invs_vals);
-	config_geti(cfile, "text.tab-width", &conf->text.tab_width);
 	get_indentation(cfile, "text.indentation", &conf->text.indentation);
+	get_newline(cfile, "text.default-newline", &conf->text.default_newline);
 }
 
 static bool
@@ -121,4 +128,74 @@ get_indentation(ConfigFile *cfile, const char *key, int *value)
 
 	*value = 0;
 	return true;
+}
+
+static bool
+get_newline(ConfigFile *cfile, const char *key, const char **value)
+{
+	const char *str_val;
+	int line;
+	if (!config_get(cfile, key, &str_val, &line))
+		return false;
+
+	if (!sparsef(str_val, "unix")) {
+		*value = "\n";
+		return true;
+	}
+
+	if (!sparsef(str_val, "dos")) {
+		*value = "\r\n";
+		return false;
+	}
+
+	int unival;
+	if (!sparsef(str_val, "U+%x", &unival)) {
+		switch (unival) {
+		case 0x000A: /* LF */
+			*value = "\n";
+			break;
+
+		case 0x000B: /* VT */
+			*value = "\v";
+			break;
+
+		case 0x000C: /* FF */
+			*value = "\f";
+			break;
+
+		case 0x000D: /* CR */
+			*value = "\r";
+			break;
+
+		case 0x0085: /* NEL */
+			*value = "\xC2\x85";
+			break;
+
+		case 0x2028: /* LS */
+			*value = u8"\u2028";
+			break;
+
+		case 0x2029: /* PS */
+			*value = u8"\u2029";
+			break;
+
+		default:
+			fprintf(stderr,
+				"%s line %d: unknown newline `U+%x'\n",
+				config_get_filename(cfile),
+				line,
+				(unsigned)unival);
+			return false;
+
+		}
+
+		return true;
+	}
+
+	fprintf(stderr,
+		"%s line %d: expected `unix', `dos' or `U+XXXX'\n",
+		config_get_filename(cfile),
+		line);
+
+	return false;
 }

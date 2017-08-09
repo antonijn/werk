@@ -24,10 +24,12 @@ sparsef(const char *str, const char *fmt, ...)
 
 		fmt_ch = fmt[++i];
 		switch (fmt_ch) {
+		case 'x':
 		case 'd': {
 			int *argp = va_arg(ap, int *);
 			char *end;
-			*argp = strtol(str, &end, 0);
+			int base = (fmt_ch == 'x') ? 16 : 10;
+			*argp = strtol(str, &end, base);
 			if (errno == ERANGE)
 				return -1;
 			str = end;

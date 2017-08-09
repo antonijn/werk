@@ -9,7 +9,7 @@
  * Succeeds, even though the source string didn't contain "abc".
  * sparsef() would fail.
  *
- * Currently supports `%d' and `%%' type specifiers.
+ * Currently supports `%d', `%x' and `%%' type specifiers.
  *
  * Returns -1 on failure, 0 on success.
  */
