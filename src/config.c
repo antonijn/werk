@@ -18,12 +18,12 @@ config_load_defaults(Config *cfg)
 	cfg->colors.insert.inv = (RGB){ 150, 150, 150 },
 	cfg->colors.insert.bg = (RGB){ 255, 250, 210 },
 	cfg->colors.insert.sel = (RGB){ 255, 253, 239 };
-	cfg->colors.insert.line_numbers_bg = cfg->colors.insert.bg;
+	cfg->colors.insert.line_numbers_bg = (RGB){ 230, 225, 188 };
 	cfg->colors.select.fg = (RGB){ 74, 74, 74 },
 	cfg->colors.select.bg = (RGB){ 209, 252, 255 },
 	cfg->colors.select.inv = (RGB){ 150, 150, 150 },
 	cfg->colors.select.sel = (RGB){ 239, 254, 255 };
-	cfg->colors.select.line_numbers_bg = cfg->colors.select.bg;
+	cfg->colors.select.line_numbers_bg = (RGB){ 188, 227, 230 };
 	cfg->editor.line_numbers = true;
 	cfg->editor.show_tabs = cfg->editor.show_spaces = cfg->editor.show_newlines = false;
 	cfg->text.indentation = 0;
