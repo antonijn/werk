@@ -48,7 +48,9 @@ config_read_path(const char *path)
 {
 	FILE *file = fopen(path, "r");
 	ConfigFile *res = config_read(file, path);
-	fclose(file);
+	if (file)
+		fclose(file);
+
 	return res;
 }
 
@@ -58,8 +60,6 @@ config_read(FILE *file, const char *filename)
 	ConfigFile *conf = malloc(sizeof(ConfigFile));
 	if (!conf)
 		return NULL;
-
-	char line[1024];
 
 	memset(conf, 0, sizeof(ConfigFile));
 
@@ -71,6 +71,12 @@ config_read(FILE *file, const char *filename)
 	}
 	memcpy(conf->filename, filename, fname_len + 1);
 
+	if (!file) {
+		conf->error_msg = "no such file";
+		return conf;
+	}
+
+	char line[1024];
 	while (fgets(line, sizeof(line), file)) {
 		++conf->line;
 
