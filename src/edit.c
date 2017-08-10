@@ -40,7 +40,7 @@ typedef struct buffer {
 
 	struct {
 		bool active;
-		int line, col, w;
+		int w;
 		GapBuf gbuf;
 	} dialog;
 
@@ -738,8 +738,25 @@ draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh)
 	if (!buf->dialog.active)
 		return;
 
+	int line = buf->sel_finish.line;
+	int col = buf->sel_finish.col;
+
+	if (buf->sel_finish.line > buf->sel_start.line)
+		++line;
+	else
+		--line;
+
 	int x, y;
-	buf_get_line_col_position(buf, buf->dialog.line, buf->dialog.col, ww, wh, &x, &y);
+	buf_get_line_col_position(buf, line, col, ww, wh, &x, &y);
+
+	if (y >= wh)
+		y -= 2;
+	else if (y < 0)
+		y += 2;
+
+	int overhang = x + buf->dialog.w - ww;
+	if (overhang > 0)
+		x -= overhang;
 
 	drw_set_color(d, buf->werk->cfg.colors.insert.bg);
 	drw_fill_rect(d, x, y, buf->dialog.w, 1);
@@ -776,16 +793,6 @@ draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh)
 static void
 show_cmd_dialog(Buffer *buf)
 {
-	int line = buf->sel_finish.line;
-	int col = buf->sel_finish.col;
-
-	if (buf->sel_finish.line > buf->sel_start.line)
-		++line;
-	else
-		--line;
-
-	buf->dialog.line = line;
-	buf->dialog.col = col;
 	buf->dialog.w = CMD_DIALOG_WIDTH;
 	buf->dialog.active = true;
 }
