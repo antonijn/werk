@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void config_load_file(Config *cfg, const char *path);
 static bool get_indentation(ConfigFile *cfile, const char *key, int *value);
 static bool get_newline(ConfigFile *cfile, const char *key, const char **value);
 
@@ -36,37 +37,17 @@ config_load_defaults(Config *cfg)
 	cfg->text.indentation = 0;
 }
 
-void
-config_load(Config *conf)
+static void
+config_load_file(Config *conf, const char *path)
 {
-	config_load_defaults(conf);
-
-	char *home_dir = getenv("HOME");
-	if (!home_dir) {
-		fprintf(stderr, "warning: could not load configuration file: no $HOME!\n");
+	ConfigFile *cfile = config_read_path(path);
+	if (!cfile)
 		return;
-	}
-	size_t home_dir_len = strlen(home_dir);
-
-	char *config_rel = "/.config/werk/user.conf";
-	size_t config_rel_len = strlen(config_rel);
-
-	char config_path[home_dir_len + config_rel_len + 1];
-	memcpy(config_path, home_dir, home_dir_len);
-	memcpy(config_path + home_dir_len, config_rel, config_rel_len + 1);
-
-	ConfigFile *cfile = config_read_path(config_path);
-	if (!cfile) {
-		fprintf(stderr,
-		        "warning: could not find configuration file at ``%s''\n",
-		        config_path);
-		return;
-	}
 
 	int line;
 	const char *msg;
 	if (config_get_error(cfile, &line, &msg)) {
-		fprintf(stderr, "error reading user.conf: %d: %s\n", line, msg);
+		fprintf(stderr, "`%s': %d: %s\n", path, line, msg);
 		return;
 	}
 
@@ -89,10 +70,46 @@ config_load(Config *conf)
 	config_getb(cfile, "editor.line-numbers", &conf->editor.line_numbers);
 	config_geti(cfile, "editor.tab-width", &conf->editor.tab_width);
 	static const char *invs_names[] = { "tabs", "spaces", "newlines", NULL };
-	bool *invs_vals[] = { &conf->editor.show_tabs, &conf->editor.show_spaces, &conf->editor.show_newlines };
+	bool *invs_vals[] = {
+		&conf->editor.show_tabs,
+		&conf->editor.show_spaces,
+		&conf->editor.show_newlines
+	};
 	config_get_switches(cfile, "editor.show-invisibles", invs_names, invs_vals);
 	get_indentation(cfile, "text.indentation", &conf->text.indentation);
 	get_newline(cfile, "text.default-newline", &conf->text.default_newline);
+
+	config_destroy(cfile);
+}
+
+void
+config_load(Config *conf)
+{
+	int line;
+	const char *msg;
+
+	config_load_defaults(conf);
+
+	/* PREFIX is set by Makefile */
+	static const char *const sys_cfg_path = PREFIX "/share/werk/system.conf";
+
+	config_load_file(conf, sys_cfg_path);
+
+	char *home_dir = getenv("HOME");
+	if (!home_dir) {
+		fprintf(stderr, "warning: could not load configuration file: no $HOME!\n");
+		return;
+	}
+	size_t home_dir_len = strlen(home_dir);
+
+	char *config_rel = "/.config/werk/user.conf";
+	size_t config_rel_len = strlen(config_rel);
+
+	char config_path[home_dir_len + config_rel_len + 1];
+	memcpy(config_path, home_dir, home_dir_len);
+	memcpy(config_path + home_dir_len, config_rel, config_rel_len + 1);
+
+	config_load_file(conf, config_path);
 }
 
 static bool

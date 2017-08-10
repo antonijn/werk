@@ -21,6 +21,7 @@ typedef struct kvp {
 	const char *key;
 	const char *value;
 	int line;
+	bool used;
 
 	struct kvp *next;
 } KVP;
@@ -181,6 +182,7 @@ config_insert_key(ConfigFile *conf,
 	new_kvp->key = real_key;
 	new_kvp->value = real_val;
 	new_kvp->line = conf->line;
+	new_kvp->used = false;
 	new_kvp->hash = hash;
 	new_kvp->next = conf->buckets[masked];
 
@@ -197,6 +199,7 @@ config_get(ConfigFile *conf, const char *key, const char **value, int *line)
 
 	for (KVP *kvp = conf->buckets[masked]; kvp; kvp = kvp->next) {
 		if (kvp->hash == hash && !strcmp(kvp->key, key)) {
+			kvp->used = true;
 			*value = kvp->value;
 			*line = kvp->line;
 			return true;
@@ -517,4 +520,31 @@ rtrim_space(const char *str, size_t *len)
 	}
 
 	*len = l;
+}
+
+void
+config_destroy(ConfigFile *conf)
+{
+	if (!conf)
+		return;
+
+	for (int i = 0; i < NUM_BUCKETS; ++i) {
+		for (KVP *k = conf->buckets[i]; k; ) {
+			if (!k->used) {
+				fprintf(stderr,
+				        "%s line %d: no such option `%s'\n",
+				        conf->filename,
+				        k->line,
+				        k->key);
+			}
+
+			free((char *)k->key);
+			free((char *)k->value);
+			KVP *nxt = k->next;
+			free(k);
+			k = nxt;
+		}
+	}
+
+	free(conf);
 }

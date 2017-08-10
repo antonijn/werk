@@ -85,7 +85,7 @@ To run:
     ✔ Color options
       ✔ RGB
       ✔ HSV
-    ✘ System-wide configuration (/usr/share/werk/system.conf)
+    ✔ System-wide configuration (/usr/share/werk/system.conf)
     ✘ @version directive
     ✘ @inherit directive
 

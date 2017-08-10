@@ -1,9 +1,11 @@
 TARGET = werk
 
+PREFIX = /usr/local
+
 OBJECTS = src/main.o src/edit.o src/gap.o src/ncurses.o src/configfile.o \
           src/config.o src/sparsef.o
 LIBS = ncurses
-CFLAGS = -DHAS_NCURSES -Wreturn-type -Wunused-function
+CFLAGS = -DHAS_NCURSES -DPREFIX=\"${PREFIX}\" -Wreturn-type -Wunused-function
 
 ifndef GTK
 GTK=true
