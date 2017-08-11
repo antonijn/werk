@@ -485,10 +485,13 @@ num_width(int i)
 static void
 buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlines)
 {
-	int line_num_width = num_width(buf->vp_orig_line + hlines);
+	int line_num_width = 0;
+
+	if (buf->werk->cfg.editor.line_numbers)
+		line_num_width = num_width(buf->vp_orig_line + hlines) + 1;
 
 	if (vw) {
-		int w = wlines - (line_num_width + 1);
+		int w = wlines - line_num_width;
 		if (w < 0)
 			w = 0;
 		*vw = w;
