@@ -90,6 +90,7 @@ static void buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlin
 static void buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines);
 static void buf_pipe_selection(Buffer *buf, const char *str);
 static void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
+static int buf_save(Buffer *buf);
 
 /* converts line and col number to position on screen (x, y) */
 static void buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *y);
@@ -693,6 +694,22 @@ buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *
 		*y = l - orig_y;
 }
 
+static int
+buf_save(Buffer *buf)
+{
+	if (!buf->filename)
+		return -1;
+
+	FILE *out = fopen(buf->filename, "wb");
+	if (!out)
+		return -1;
+
+	gbuf_write(&buf->gbuf, out);
+	fclose(out);
+
+	return 0;
+}
+
 /*                     _       _ _       _             
  *   ___ _ __ ___   __| |   __| (_) __ _| | ___   __ _ 
  *  / __| '_ ` _ \ / _` |  / _` | |/ _` | |/ _ \ / _` |
@@ -915,17 +932,13 @@ nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
 		switch (input[0]) {
 		case 'd':
 			show_cmd_dialog(buf);
-			return mode;
-		case 's': {
-			if (!buf->filename)
-				return mode;
-
-			FILE *out = fopen(buf->filename, "wb");
-			gbuf_write(&buf->gbuf, out);
-			fclose(out);
-			return mode;
-			  }
+			break;
+		case 's':
+			buf_save(buf);
+			break;
 		}
+
+		return mode;
 	}
 
 	switch (input[0]) {
@@ -1032,9 +1045,8 @@ im_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
 		return mode;
 	}
 
-	if (len != 1) {
+	if (len != 1)
 		return mode;
-	}
 
 	switch (input[0]) {
 	case 'd':
@@ -1048,15 +1060,9 @@ im_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
 		mode = imode->parent;
 		free(imode);
 		return imode->parent;
-	case 's': {
-		if (!imode->buf->filename)
-			break;
-
-		FILE *out = fopen(imode->buf->filename, "wb");
-		gbuf_write(&imode->buf->gbuf, out);
-		fclose(out);
+	case 's':
+		buf_save(imode->buf);
 		break;
-		  }
 	}
 
 	return mode;
