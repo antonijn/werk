@@ -74,8 +74,7 @@ config_load(Config *conf)
 	ConfigReader *rdr = config_init();
 	config_setup_reader(conf, rdr);
 
-	/* PREFIX is set by Makefile */
-	static const char *const sys_cfg_path = PREFIX "/share/werk/system.conf";
+	static const char *const sys_cfg_path = "/etc/werk/system.conf";
 
 	config_read_file(rdr, sys_cfg_path);
 
