@@ -1,7 +1,7 @@
 TARGET = werk
 
-OBJECTS = src/main.o src/edit.o src/gap.o src/ncurses.o src/configfile.o \
-          src/config.o src/sparsef.o
+OBJECTS = src/main.o src/edit.o src/gap.o src/ncurses.o src/cfgprs.o \
+          src/cfg.o src/sparsef.o
 LIBS = ncurses
 CFLAGS = -DHAS_NCURSES -Wreturn-type -Wunused-function
 

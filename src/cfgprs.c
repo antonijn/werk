@@ -1,4 +1,4 @@
-#include "configfile.h"
+#include "cfgprs.h"
 #include "sparsef.h"
 
 #include <errno.h>

@@ -6,7 +6,7 @@
 #include <unigbrk.h>
 #include <unistr.h>
 #include <uniwidth.h>
-#include "config.h"
+#include "cfg.h"
 #include "edit.h"
 #include "gap.h"
 

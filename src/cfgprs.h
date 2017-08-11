@@ -1,5 +1,5 @@
-#ifndef CONFIGFILE_H
-#define CONFIGFILE_H
+#ifndef CFGPRS_H
+#define CFGPRS_H
 
 #include <stdbool.h>
 #include <stdint.h>

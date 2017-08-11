@@ -1,5 +1,5 @@
-#include "configfile.h"
-#include "config.h"
+#include "cfgprs.h"
+#include "cfg.h"
 #include "sparsef.h"
 
 #include <errno.h>
