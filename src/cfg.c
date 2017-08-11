@@ -8,10 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void indentation_callback(ConfigReader *rdr, const char *str, void *udata);
-static void newline_callback(ConfigReader *rdr, const char *str, void *udata);
-
-void
+/*
+ * Loads default configuration into `cfg'.
+ */
+static void
 config_load_defaults(Config *cfg)
 {
 	memset(cfg, 0, sizeof(*cfg));
@@ -35,6 +35,19 @@ config_load_defaults(Config *cfg)
 #endif
 	cfg->text.indentation = 0;
 }
+
+/*
+ * ConfigReader callback, reads strings of the form "%d spaces" and
+ * "tabs". Stores the number of spaces (or 0 for "tabs") into
+ * (int *)udata.
+ */
+static void indentation_callback(ConfigReader *rdr, const char *str, void *udata);
+
+/*
+ * ConfigReader callback, reads "unix", "dos" and "U+XXXX" options into
+ * (const char **)udata.
+ */
+static void newline_callback(ConfigReader *rdr, const char *str, void *udata);
 
 static void
 config_setup_reader(Config *conf, ConfigReader *rdr)

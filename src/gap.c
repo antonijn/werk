@@ -164,6 +164,7 @@ gbuf_read(GapBuf *gbuf, FILE *in)
 	gbuf->gap_size = gbuf->size - fsize;
 }
 
+/* Force gap move */
 static void gbuf_move_cursor(GapBuf *buf, gbuf_offs pos);
 
 void
@@ -220,7 +221,7 @@ gbuf_delete_text(GapBuf *buf, gbuf_offs cursor, size_t len)
 	gbuf_auto_resize(buf);
 }
 
-gbuf_offs
+static gbuf_offs
 ptr_to_offs(GapBuf *buf, const char *ptr)
 {
 	if (ptr >= buf->start + buf->gap_offs + buf->gap_size)
@@ -228,7 +229,7 @@ ptr_to_offs(GapBuf *buf, const char *ptr)
 
 	return ptr - buf->start;
 }
-char *
+static char *
 offs_to_ptr(GapBuf *buf, gbuf_offs offset)
 {
 	if (buf->start + offset < (buf->start + buf->gap_offs))

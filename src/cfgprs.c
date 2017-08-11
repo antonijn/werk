@@ -13,38 +13,79 @@
 #define HASH_MASK       (NUM_BUCKETS - 1)
 #define MAX_LINE_SIZE   1024
 
+/*
+ * Fowler-Noll-Vo-1a hash of null-terminated string.
+ */
 static uint64_t hash_str(const char *str);
+
+/*
+ * Trims left and right whitespace off of `str', stores new start of
+ * string back into `str' and the new length in `len'. No null-byte
+ * checking is performed.
+ */
 static void trim_space(const char **str, size_t *len);
+/* Only on left side */
 static void ltrim_space(const char **str, size_t *len);
+/* Only on right side */
 static void rtrim_space(const char *str, size_t *len);
+
+/*
+ * Accepted "true"  values: true,  yes, 1, ✓
+ * Accepted "false" values: false, no,  0, ✗
+ */
 static int parse_bool(const char *str, bool *value);
 
+/*
+ * Used to keep track of allocations made by config_alloc().
+ */
 typedef struct allocation {
-	struct allocation *next;
 	void *mem;
+	struct allocation *next;
 } Allocation;
 
+/* Key-value pair */
 typedef struct kvp {
+	/* key hash */
 	uint64_t hash;
 	const char *key;
 
 	option_callback callback;
 	void *udata;
 
+	/* next key-value-pair in bucket */
 	struct kvp *next;
 } KVP;
 
+/* Configuration reader/parser object */
 struct config_reader {
 	KVP *buckets[NUM_BUCKETS];
+
+	/* current category in config file */
 	char category[MAX_LINE_SIZE];
 
+	/* list of allocations made by config_alloc() */
 	Allocation *allocations;
+
+	/* used for error reporting */
 	const char *filename;
 	int line;
 };
 
+/*
+ * Returns -1 on fatal errors.
+ */
 static int config_read_line(ConfigReader *conf, const char *line);
+
+/*
+ * Retrieves kvp with key `key' from the hash table, or `NULL' if none
+ * was found.
+ */
 static KVP *config_get_callback(ConfigReader *conf, const char *key);
+
+/*
+ * Performs callback call of option with key `key' (length `key_len')
+ * with value `val' (length `val_len').
+ */
 static int config_call_option(ConfigReader *conf,
                               const char *key,
                               size_t key_len,
@@ -112,7 +153,7 @@ config_read_file(ConfigReader *conf, const char *path)
 	fclose(file);
 }
 
-int
+static int
 config_read_line(ConfigReader *conf, const char *line)
 {
 	size_t len = strlen(line);
@@ -527,8 +568,6 @@ parse_bool(const char *str, bool *value)
 static uint64_t
 hash_str(const char *str)
 {
-	/* FNV-1a hash */
-
 	const uint64_t fnv_prime = (1UL << 40) + (1UL << 8) + 0xB3UL;
 	const uint64_t offset_basis = 14695981039346656037UL;
 

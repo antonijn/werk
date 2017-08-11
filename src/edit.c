@@ -12,12 +12,15 @@
 
 #define CMD_DIALOG_WIDTH 30
 
+/* used to keep track of locations in the gap buffer */
 typedef struct {
 	gbuf_offs offset;
 	int line, col;
 } BufferMarker;
 
+/* editor mode object */
 typedef struct mode Mode;
+/* instance of the editor (possibly containing multiple buffers) */
 typedef struct werk_instance WerkInstance;
 
 typedef struct buffer {
@@ -31,6 +34,7 @@ typedef struct buffer {
 	/* Selection markers */
 	BufferMarker sel_start, sel_finish;
 
+	/* Buffer-specific newline character */
 	const char *eol;
 	size_t eol_size;
 
@@ -40,7 +44,7 @@ typedef struct buffer {
 
 	struct {
 		bool active;
-		int w;
+		int w; /* width */
 		GapBuf gbuf;
 	} dialog;
 
@@ -66,37 +70,161 @@ struct werk_instance {
  *                                          |___/
  */
 
+/* Returns true for all Unicode newlines */
 static bool grapheme_is_newline(const char *str, size_t len);
 
-/* Next and prev graphemes */
+/* CJK characters are typically width 2, tabs are variable-width */
+static int grapheme_width(const char *str, size_t n, int col, int tab_width);
+
+/*
+ * Calculate column number of character identifier by given offset.
+ */
+static int grapheme_column(Buffer *buf, gbuf_offs ofs);
+
+/*
+ * Moves `marker' to next grapheme, stores the current grapheme in `str'
+ * and its size in `size'.
+ */
 static int marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker);
+/*
+ * Moves `marker' to previous grapheme, stores the current grapheme in
+ * `str' and its size in `size'.
+ */
 static int marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker);
 
-/* Start of next line */
+/*
+ * Move `marker' to start of next line.
+ */
 static void marker_next_line(Buffer *buf, BufferMarker *marker);
-/* Start of current line */
+/*
+ * Move `marker' to start of current line.
+ */
 static void marker_start_of_line(Buffer *buf, BufferMarker *marker);
+/*
+ * Move `marker' to last character before newline.
+ */
 static void marker_end_of_line(Buffer *buf, BufferMarker *marker);
 
+/*
+ * Swap `a' and `b' if `a' > `b'.
+ */
+static void marker_sort_pair(BufferMarker *a, BufferMarker *b);
 
+
+/*
+ * Initialize empty buffer.
+ */
 static void buf_init(Buffer *buf, WerkInstance *werk);
 
-static void buf_detect_newline(Buffer *buf);
-static bool buf_is_selection_degenerate(Buffer *buf);
-static void buf_move_cursor(Buffer *buf, int delta, bool extend);
-/* Calculate viewport so that the end of the selection is visible */
-static void buf_move_viewport(Buffer *buf, int wlines, int hlines);
-static void buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlines);
-static void buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines);
-static void buf_pipe_selection(Buffer *buf, const char *str);
-static void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
-static int buf_save(Buffer *buf);
-
-/* converts line and col number to position on screen (x, y) */
-static void buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *y);
-
+/*
+ * Initialize command dialog of buffer. This is called by buf_init().
+ */
 static void cmd_dialog_init(Buffer *buf);
 
+/*
+ * Sets `buf->eol' and `buf->eol_size' to the value of the first newline
+ * found in the buffer. Otherwise it uses "text.default-newline" from
+ * the configuration.
+ */
+static void buf_detect_newline(Buffer *buf);
+
+/*
+ * Return whether selection is merely a cursor.
+ */
+static bool buf_is_selection_degenerate(Buffer *buf);
+
+/*
+ * Move cursor by `delta' graphemes. Positive `delta' means movement
+ * to the right, negative to the left.
+ */
+static void buf_move_cursor(Buffer *buf, int delta, bool extend);
+
+/*
+ * Calculate viewport origin to make sure that the end of the selection
+ * is visible.
+ */
+static void buf_calc_vp_origin(Buffer *buf, int wlines, int hlines);
+
+/*
+ * Get size of the viewport, taking the line number columns into
+ * account.
+ */
+static void buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlines);
+
+/*
+ * Draw single grapheme. Used by buf_draw_line().
+ */
+static void buf_draw_grapheme(Buffer *buf,
+                              Drawer *d,
+		              int x, int y, int w,
+                              const char *graph, size_t graph_len);
+
+/*
+ * Draw single line. Used by buf_draw().
+ * `logic_x' is the translation of the viewport to the left in
+ * graphemes (number of columns).
+ */
+static bool buf_draw_line(Buffer *buf,
+                          Drawer *d,
+                          BufferMarker marker,
+                          int vw, int vh,
+                          int logic_x,
+                          int x, int y);
+
+/*
+ * Draw the buffer text and line numbers.
+ */
+static void buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines);
+
+/*
+ * Pipe buffer selection through command `str'.
+ * See also: gbuf_pipe()
+ */
+static void buf_pipe_selection(Buffer *buf, const char *str);
+
+/*
+ * Insert string at end of selection.
+ */
+static void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
+
+/*
+ * Save `buf' to `buf->filename' if possible.
+ */
+static int buf_save(Buffer *buf);
+
+/*
+ * Convert line and column number to position on screen.
+ */
+static void buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *y);
+
+/*
+ * Handle key press for command dialog.
+ */
+static void cmd_dialog_on_key_press(Buffer *buf, KeyMods mods, const char *input, size_t len);
+
+/*
+ * Remove last character from command dialog.
+ */
+static void cmd_dialog_on_backspace_press(Buffer *buf, KeyMods mods);
+
+/*
+ * Initiate buf_pipe_selection().
+ */
+static void cmd_dialog_on_enter_press(Buffer *buf, KeyMods mods);
+
+/*
+ * Draw command dialog onto the screen (if it's active).
+ */
+static void draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh);
+
+/*
+ * Activate command dialog.
+ */
+static void show_cmd_dialog(Buffer *buf);
+
+/*
+ * Initialize normal mode (selection mode).
+ */
 static Mode *nm_init(Buffer *buf);
 
 static void
@@ -119,6 +247,15 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	/* is reset later using buf_detect_newline() */
 	buf->eol = werk->cfg.text.default_newline;
 	buf->eol_size = strlen(buf->eol);
+}
+
+static void
+cmd_dialog_init(Buffer *buf)
+{
+	memset(&buf->dialog, 0, sizeof(buf->dialog));
+
+	gbuf_init(&buf->dialog.gbuf);
+	buf->dialog.active = false;
 }
 
 static void
@@ -161,7 +298,6 @@ buf_is_selection_degenerate(Buffer *buf)
 	return buf->sel_start.offset == buf->sel_finish.offset;
 }
 
-/* All Unicode newlines are accepted */
 static bool
 grapheme_is_newline(const char *str, size_t len)
 {
@@ -424,7 +560,7 @@ buf_insert_input_string(Buffer *buf, const char *input, size_t len)
 }
 
 static void
-buf_move_viewport(Buffer *buf, int wlines, int hlines)
+buf_calc_vp_origin(Buffer *buf, int wlines, int hlines)
 {
 	BufferMarker marker = buf->sel_finish;
 
@@ -466,6 +602,9 @@ buf_move_viewport(Buffer *buf, int wlines, int hlines)
 	}
 }
 
+/*
+ * The number of characters needed to represent `i' in base ten.
+ */
 static int
 num_width(int i)
 {
@@ -502,7 +641,10 @@ buf_get_viewport(Buffer *buf, int *vw, int *vh, int wlines, int hlines)
 		*vh = hlines;
 }
 
-/* des_w: desired width */
+/*
+ * Draw a line number `n' at given position, `des_w' being the
+ * desired width of the line number column.
+ */
 static void
 draw_line_num(Drawer *d, int n, int x, int y, int des_w)
 {
@@ -632,7 +774,7 @@ buf_draw_selection(Buffer *buf, Drawer *d, int vw, int vh, int offset_x)
 static void
 buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 {
-	buf_move_viewport(buf, wlines, hlines);
+	buf_calc_vp_origin(buf, wlines, hlines);
 
 	int vw, vh;
 	buf_get_viewport(buf, &vw, &vh, wlines, hlines);
@@ -709,14 +851,6 @@ buf_save(Buffer *buf)
 
 	return 0;
 }
-
-/*                     _       _ _       _             
- *   ___ _ __ ___   __| |   __| (_) __ _| | ___   __ _ 
- *  / __| '_ ` _ \ / _` |  / _` | |/ _` | |/ _ \ / _` |
- * | (__| | | | | | (_| | | (_| | | (_| | | (_) | (_| |
- *  \___|_| |_| |_|\__,_|  \__,_|_|\__,_|_|\___/ \__, |
- *                                               |___/ 
- */
 
 static void
 cmd_dialog_on_key_press(Buffer *buf, KeyMods mods, const char *input, size_t len)
@@ -800,11 +934,7 @@ draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh)
 	int x_offs = (buf->dialog.w < num_show) * (buf->dialog.w - num_graphemes);
 
 
-	drw_draw_text(d,
-	              x + x_offs, y,
-	              false, false,
-	              str + show_offs,
-	              num_show);
+	drw_draw_text(d, x + x_offs, y, false, false, str + show_offs, num_show);
 
 	free(str);
 
@@ -818,27 +948,14 @@ show_cmd_dialog(Buffer *buf)
 	buf->dialog.active = true;
 }
 
-static void
-cmd_dialog_init(Buffer *buf)
-{
-	memset(&buf->dialog, 0, sizeof(buf->dialog));
 
-	gbuf_init(&buf->dialog.gbuf);
-	buf->dialog.active = false;
-}
-
-/*                  _                  _ _ _             
- *  _ __ ___   __ _(_)_ __     ___  __| (_) |_ ___  _ __ 
- * | '_ ` _ \ / _` | | '_ \   / _ \/ _` | | __/ _ \| '__|
- * | | | | | | (_| | | | | | |  __/ (_| | | || (_) | |   
- * |_| |_| |_|\__,_|_|_| |_|  \___|\__,_|_|\__\___/|_|   
- */
-
-/*                _      _   _           _    
- *  _ __  ___  __| |__ _| | | |___  __ _(_)__ 
- * | '  \/ _ \/ _` / _` | | | / _ \/ _` | / _|
- * |_|_|_\___/\__,_\__,_|_| |_\___/\__, |_\__|
- *                                 |___/      
+/*
+ *                      _       _   _             _
+ *  _ __ ___   ___   __| | __ _| | | | ___   __ _(_) ___
+ * | '_ ` _ \ / _ \ / _` |/ _` | | | |/ _ \ / _` | |/ __|
+ * | | | | | | (_) | (_| | (_| | | | | (_) | (_| | | (__
+ * |_| |_| |_|\___/ \__,_|\__,_|_| |_|\___/ \__, |_|\___|
+ *                                          |___/
  */
 
 /* aka Mode */
@@ -1094,10 +1211,13 @@ im_on_delete_press(Mode *mode, KeyMods mods)
 	return mode;
 }
 
-/*         _ _ _                    _         _            
- *  ___ __| (_) |_ ___ _ _  __ __ _(_)_ _  __| |_____ __ __
- * / -_) _` | |  _/ _ \ '_| \ V  V / | ' \/ _` / _ \ V  V /
- * \___\__,_|_|\__\___/_|    \_/\_/|_|_||_\__,_\___/\_/\_/ 
+/*
+ *           _ _ _               _           _
+ *   ___  __| (_) |_ ___  _ __  (_)_ __  ___| |_ __ _ _ __   ___ ___
+ *  / _ \/ _` | | __/ _ \| '__| | | '_ \/ __| __/ _` | '_ \ / __/ _ \
+ * |  __/ (_| | | || (_) | |    | | | | \__ \ || (_| | | | | (_|  __/
+ *  \___|\__,_|_|\__\___/|_|    |_|_| |_|___/\__\__,_|_| |_|\___\___|
+ *
  */
 
 static void
@@ -1159,6 +1279,7 @@ werk_on_draw(Window *win, Drawer *d, int wlines, int hlines)
 	buf_draw(active_buf, d, wlines, hlines);
 	draw_cmd_dialog(active_buf, d, wlines, hlines);
 }
+
 static void
 werk_on_close(Window *win)
 {
@@ -1167,6 +1288,10 @@ werk_on_close(Window *win)
 	free(werk);
 }
 
+/*
+ * Add buffer containing only a newline to the instance, and set it as
+ * the active buffer.
+ */
 static Buffer *
 werk_add_buffer(WerkInstance *werk)
 {
@@ -1189,6 +1314,9 @@ werk_add_buffer(WerkInstance *werk)
 	return buf;
 }
 
+/*
+ * Add file buffer to the instance, and set it as the active buffer.
+ */
 static Buffer *
 werk_add_file(WerkInstance *werk, const char *path)
 {
