@@ -1,6 +1,8 @@
 #include "configfile.h"
 #include "sparsef.h"
 
+#include <errno.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unictype.h>
@@ -9,6 +11,7 @@
 #define HASH_BITS       8
 #define NUM_BUCKETS     (1 << HASH_BITS)
 #define HASH_MASK       (NUM_BUCKETS - 1)
+#define MAX_LINE_SIZE   1024
 
 static uint64_t hash_str(const char *str);
 static void trim_space(const char **str, size_t *len);
@@ -16,80 +19,99 @@ static void ltrim_space(const char **str, size_t *len);
 static void rtrim_space(const char *str, size_t *len);
 static int parse_bool(const char *str, bool *value);
 
+typedef struct allocation {
+	struct allocation *next;
+	void *mem;
+} Allocation;
+
 typedef struct kvp {
 	uint64_t hash;
 	const char *key;
-	const char *value;
-	int line;
-	bool used;
+
+	option_callback callback;
+	void *udata;
 
 	struct kvp *next;
 } KVP;
 
-struct config_file {
+struct config_reader {
 	KVP *buckets[NUM_BUCKETS];
+	char category[MAX_LINE_SIZE];
 
-	char category[1024];
-
-	char *filename;
-
+	Allocation *allocations;
+	const char *filename;
 	int line;
-	const char *error_msg;
 };
 
-static int config_read_line(ConfigFile *conf, const char *line);
-static int config_insert_key(ConfigFile *conf,
-                             const char *key,
-                             size_t key_len,
-                             const char *val,
-                             size_t val_len);
+static int config_read_line(ConfigReader *conf, const char *line);
+static KVP *config_get_callback(ConfigReader *conf, const char *key);
+static int config_call_option(ConfigReader *conf,
+                              const char *key,
+                              size_t key_len,
+                              const char *val,
+                              size_t val_len);
 
-ConfigFile *
-config_read_path(const char *path)
+void
+config_report(ConfigReader *conf, const char *fmt, ...)
 {
-	FILE *file = fopen(path, "r");
-	ConfigFile *res = config_read(file, path);
-	if (file)
-		fclose(file);
+	fprintf(stderr, "%s line %d: ", conf->filename, conf->line);
 
-	return res;
+	va_list ap;
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
 }
 
-ConfigFile *
-config_read(FILE *file, const char *filename)
+ConfigReader *
+config_init(void)
 {
-	ConfigFile *conf = malloc(sizeof(ConfigFile));
+	ConfigReader *conf = malloc(sizeof(ConfigReader));
 	if (!conf)
 		return NULL;
 
-	memset(conf, 0, sizeof(ConfigFile));
+	memset(conf, 0, sizeof(ConfigReader));
+	return conf;
+}
 
-	size_t fname_len = strlen(filename);
-	conf->filename = malloc(fname_len + 1);
-	if (!conf->filename) {
-		conf->error_msg = "out of memory";
-		return conf;
-	}
-	memcpy(conf->filename, filename, fname_len + 1);
+void
+config_read_file(ConfigReader *conf, const char *path)
+{
+	conf->filename = path;
 
+	FILE *file = fopen(path, "r");
 	if (!file) {
-		conf->error_msg = "no such file";
-		return conf;
+		config_report(conf, "opening file `%s' failed\n", path);
+		return;
 	}
 
-	char line[1024];
+	char line[MAX_LINE_SIZE];
 	while (fgets(line, sizeof(line), file)) {
+		size_t line_length = strlen(line);
+		if (line_length == 0)
+			continue;
+
 		++conf->line;
+
+		if (line[line_length - 1] != '\n') {
+			config_report(conf, "line too long");
+
+			int ch;
+			do {
+				ch = fgetc(file);
+			} while (ch != '\n' && ch != EOF);
+
+			continue;
+		}
 
 		if (config_read_line(conf, line))
 			break;
 	}
 
-	return conf;
+	fclose(file);
 }
 
 int
-config_read_line(ConfigFile *conf, const char *line)
+config_read_line(ConfigReader *conf, const char *line)
 {
 	size_t len = strlen(line);
 	trim_space(&line, &len);
@@ -103,8 +125,8 @@ config_read_line(ConfigFile *conf, const char *line)
 
 	case '[':
 		if (line[len - 1] != ']') {
-			conf->error_msg = "line must end in `]'";
-			return -1;
+			config_report(conf, "line must end in `]'\n");
+			return 0;
 		}
 
 		++line;
@@ -115,14 +137,14 @@ config_read_line(ConfigFile *conf, const char *line)
 		return 0;
 
 	case '@':
-		conf->error_msg = "line may not (yet) start with `@'";
-		return -1;
+		config_report(conf, "line may not (yet) start with `@'\n");
+		return 0;
 	}
 
 	const char *eq = strchr(line, '=');
 	if (!eq) {
-		conf->error_msg = "expected `='";
-		return -1;
+		config_report(conf, "expected `='\n");
+		return 0;
 	}
 
 	const char *pre_eq = line;
@@ -134,118 +156,150 @@ config_read_line(ConfigFile *conf, const char *line)
 	ltrim_space(&post_eq, &post_eq_len);
 
 	if (pre_eq_len == 0) {
-		conf->error_msg = "key name expected";
+		config_report(conf, "key name expected\n");
 		return -1;
 	}
 
 	if (post_eq_len > 0 && post_eq[0] == '@') {
-		conf->error_msg = "value may not (yet) start with `@`";
+		config_report(conf, "value may not (yet) start with `@`\n");
 		return -1;
 	}
 
-	return config_insert_key(conf, pre_eq, pre_eq_len, post_eq, post_eq_len);
+	return config_call_option(conf, pre_eq, pre_eq_len, post_eq, post_eq_len);
 }
 
 static int
-config_insert_key(ConfigFile *conf,
-                  const char *key,
-                  size_t key_len,
-                  const char *val,
-                  size_t val_len)
+config_call_option(ConfigReader *conf,
+                   const char *key,
+                   size_t key_len,
+                   const char *val,
+                   size_t val_len)
 {
 	size_t cat_len = strlen(conf->category);
 	char *real_key = malloc(key_len + cat_len + 2);
+	if (!real_key) {
+		config_report(conf, "out of memory\n");
+		return -1;
+	}
 
 	memcpy(real_key, conf->category, cat_len);
 	real_key[cat_len] = '.';
 	memcpy(real_key + cat_len + 1, key, key_len);
 	real_key[cat_len + key_len + 1] = '\0';
 
-	uint64_t hash = hash_str(real_key);
-	uint64_t masked = hash & HASH_MASK;
+	KVP *kvp = config_get_callback(conf, real_key);
+	if (!kvp) {
+		config_report(conf, "no such option `%s'\n", real_key);
 
-	KVP *new_kvp = malloc(sizeof(KVP));
-	if (!new_kvp) {
-		conf->error_msg = "out of memory";
-		return -1;
+		free(real_key);
+		return 0;
 	}
+
+	free(real_key);
 
 	char *real_val = malloc(val_len + 1);
 	if (!real_val) {
-		conf->error_msg = "out of memory";
+		config_report(conf, "out of memory\n");
 		return -1;
 	}
 
-	strncpy(real_val, val, val_len);
+	memcpy(real_val, val, val_len);
 	real_val[val_len] = '\0';
 
-	new_kvp->key = real_key;
-	new_kvp->value = real_val;
-	new_kvp->line = conf->line;
-	new_kvp->used = false;
-	new_kvp->hash = hash;
-	new_kvp->next = conf->buckets[masked];
+	kvp->callback(conf, real_val, kvp->udata);
 
-	conf->buckets[masked] = new_kvp;
-
+	free(real_val);
 	return 0;
 }
 
-bool
-config_get(ConfigFile *conf, const char *key, const char **value, int *line)
+static KVP *
+config_get_callback(ConfigReader *conf, const char *key)
 {
 	uint64_t hash = hash_str(key);
 	uint64_t masked = hash & HASH_MASK;
 
-	for (KVP *kvp = conf->buckets[masked]; kvp; kvp = kvp->next) {
-		if (kvp->hash == hash && !strcmp(kvp->key, key)) {
-			kvp->used = true;
-			*value = kvp->value;
-			*line = kvp->line;
-			return true;
-		}
+	for (KVP *kvp = conf->buckets[masked]; kvp; kvp = kvp->next)
+		if (kvp->hash == hash && !strcmp(kvp->key, key))
+			return kvp;
+
+	return NULL;
+}
+
+void
+config_add_opt(ConfigReader *conf, const char *key, option_callback opt, void *udata)
+{
+	uint64_t hash = hash_str(key);
+	uint64_t masked = hash & HASH_MASK;
+
+	KVP *nkvp = malloc(sizeof(KVP));
+	if (!nkvp) {
+		config_report(conf, "out of memory\n");
+		return;
 	}
 
-	return false;
+	memset(nkvp, 0, sizeof(*nkvp));
+	nkvp->key = key;
+	nkvp->hash = hash;
+	nkvp->callback = opt;
+	nkvp->udata = udata;
+	nkvp->next = conf->buckets[masked];
+
+	conf->buckets[masked] = nkvp;
 }
 
-bool
-config_gets(ConfigFile *conf, const char *key, const char **value)
+static void
+opt_s_callback(ConfigReader *conf, const char *str, void *udata)
 {
-	int line;
-	return config_get(conf, key, value, &line);
-}
+	const char **value = udata;
 
-bool
-config_geti(ConfigFile *conf, const char *key, int *value)
-{
-	const char *str_val;
-	if (!config_gets(conf, key, &str_val))
-		return false;
-
-	*value = atoi(str_val);
-	return true;
-}
-
-bool
-config_getb(ConfigFile *conf, const char *key, bool *value)
-{
-	const char *str_val;
-	int line;
-	if (!config_get(conf, key, &str_val, &line))
-		return false;
-
-	if (parse_bool(str_val, value)) {
-		fprintf(stderr,
-		        "%s line %d: invalid boolean ``%s''\n",
-		        conf->filename,
-		        line,
-		        str_val);
-
-		return false;
+	size_t strl = strlen(str);
+	char *dup = malloc(strl + 1);
+	if (!dup) {
+		config_report(conf, "out of memory\n");
+		return;
 	}
 
-	return true;
+	memcpy(dup, str, strl + 1);
+	*value = dup;
+}
+
+void
+config_add_opt_s(ConfigReader *conf, const char *key, const char **value)
+{
+	config_add_opt(conf, key, opt_s_callback, value);
+}
+
+static void
+opt_b_callback(ConfigReader *conf, const char *str, void *udata)
+{
+	if (parse_bool(str, udata))
+		config_report(conf, "invalid boolean `%s'\n", str);
+}
+
+void
+config_add_opt_b(ConfigReader *conf, const char *key, bool *value)
+{
+	config_add_opt(conf, key, opt_b_callback, value);
+}
+
+static void
+opt_i_callback(ConfigReader *conf, const char *str, void *udata)
+{
+	int *value = udata;
+
+	long res = strtol(str, NULL, 0);
+	if (errno == ERANGE || (long)(int)res != res) {
+		config_report(conf, "invalid integer (or too big): `%s'\n", str);
+		return;
+	}
+
+	*value = res;
+}
+
+void
+config_add_opt_i(ConfigReader *conf, const char *key, int *value)
+{
+	config_add_opt(conf, key, opt_i_callback, value);
 }
 
 /*
@@ -320,58 +374,55 @@ done:
 	return res;
 }
 
-bool
-config_get_color(ConfigFile *conf, const char *key, RGB *value)
+static void
+opt_color_callback(ConfigReader *conf, const char *str, void *udata)
 {
-	const char *str;
-	int line;
-	if (!config_get(conf, key, &str, &line))
-		return false;
+	RGB *value = udata;
 
 	int h, s, v;
 	if (!sparsef(str, "hsv(%d, %d, %d)", &h, &s, &v)) {
 		if (h < 0 || h >= 360 || s < 0 || s > 100 || v < 0 || v > 100) {
-			fprintf(stderr,
-			        "%s line %d: invalid hsv expression\n",
-			        conf->filename,
-			        line);
-			return false;
+			config_report(conf, "invalid hsv expression `%s'\n", str);
+			return;
 		}
 
 		*value = hsv_to_rgb(h, s, v);
-		return true;
+		return;
 	}
 
 	int r, g, b;
 	if (!sparsef(str, "rgb(%d, %d, %d)", &r, &g, &b)) {
 		if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
-			fprintf(stderr,
-			        "%s line %d: invalid rgb expression\n",
-			        conf->filename,
-			        line);
-			return false;
+			config_report(conf, "invalid rgb expression `%s'\n", str);
+			return;
 		}
 
 		value->r = r;
 		value->g = g;
 		value->b = b;
-		return true;
+		return;
 	}
 
-	fprintf(stderr, "%s line %d: expected rgb expression\n", conf->filename, line);
-	return false;
+	config_report(conf, "invalid color `%s'\n", str);
 }
 
-bool
-config_get_switches(ConfigFile *conf,
-                    const char *key,
-                    const char *names[],
-                    bool *values[])
+void
+config_add_opt_color(ConfigReader *conf, const char *key, RGB *value)
 {
-	const char *str;
-	int line;
-	if (!config_get(conf, key, &str, &line))
-		return false;
+	config_add_opt(conf, key, opt_color_callback, value);
+}
+
+typedef struct {
+	const char **names;
+	bool **values;
+} NamesValues;
+
+static void
+opt_flags_callback(ConfigReader *conf, const char *str, void *udata)
+{
+	NamesValues *nvs = udata;
+	const char **names = nvs->names;
+	bool **values = nvs->values;
 
 	bool bool_val;
 	if (parse_bool(str, &bool_val) == 0) {
@@ -382,14 +433,14 @@ config_get_switches(ConfigFile *conf,
 	if (!strcmp(str, "all")) {
 		for (int i = 0; names[i]; ++i)
 			*values[i] = true;
-		return true;
+		return;
 	}
 
 	for (int i = 0; names[i]; ++i)
 		*values[i] = false;
 
 	if (!strcmp(str, "none"))
-		return true;
+		return;
 
 	const char *field = str;
 	size_t field_len;
@@ -423,26 +474,36 @@ config_get_switches(ConfigFile *conf,
 
 		field = nxt_field + 1;
 	}
-
-	return true;
 }
 
-bool
-config_get_error(ConfigFile *conf, int *line, const char **msg)
+void
+config_add_opt_flags(ConfigReader *conf,
+                     const char *key,
+                     const char *names[],
+                     bool *values[])
 {
-	if (conf->error_msg) {
-		*msg = conf->error_msg;
-		*line = conf->line;
-		return true;
+	int num_names;
+	for (num_names = 0; names[num_names]; ++num_names)
+		;
+
+	size_t values_size = num_names * sizeof(bool *);
+	bool **alloc_vals = config_alloc(conf, values_size);
+
+	NamesValues *nvs = config_alloc(conf, sizeof(NamesValues));
+
+	if (!nvs || !alloc_vals) {
+		config_report(conf, "out of memory\n");
+		free(nvs);
+		free(alloc_vals);
+		return;
 	}
 
-	return false;
-}
+	memcpy(alloc_vals, values, values_size);
 
-const char *
-config_get_filename(ConfigFile *conf)
-{
-	return conf->filename;
+	nvs->names = names;
+	nvs->values = alloc_vals;
+
+	config_add_opt(conf, key, opt_flags_callback, nvs);
 }
 
 int
@@ -523,28 +584,43 @@ rtrim_space(const char *str, size_t *len)
 }
 
 void
-config_destroy(ConfigFile *conf)
+config_destroy(ConfigReader *conf)
 {
 	if (!conf)
 		return;
 
 	for (int i = 0; i < NUM_BUCKETS; ++i) {
 		for (KVP *k = conf->buckets[i]; k; ) {
-			if (!k->used) {
-				fprintf(stderr,
-				        "%s line %d: no such option `%s'\n",
-				        conf->filename,
-				        k->line,
-				        k->key);
-			}
-
-			free((char *)k->key);
-			free((char *)k->value);
 			KVP *nxt = k->next;
 			free(k);
 			k = nxt;
 		}
 	}
 
+	for (Allocation *alloc = conf->allocations; alloc; ) {
+		Allocation *nxt = alloc->next;
+		free(alloc->mem);
+		alloc = nxt;
+	}
+
 	free(conf);
+}
+
+void *
+config_alloc(ConfigReader *conf, size_t size)
+{
+	Allocation *alloc = malloc(sizeof(Allocation));
+	void *mem = malloc(size);
+	if (!alloc || !mem) {
+		config_report(conf, "out of memory\n");
+		free(alloc);
+		free(mem);
+		return NULL;
+	}
+
+	alloc->mem = mem;
+	alloc->next = conf->allocations;
+	conf->allocations = alloc;
+
+	return mem;
 }

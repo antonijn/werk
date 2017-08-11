@@ -6,34 +6,48 @@
 #include <stdio.h>
 #include "win.h"
 
-typedef struct config_file ConfigFile;
+typedef struct config_reader ConfigReader;
+typedef void (*option_callback)(ConfigReader *conf, const char *value, void *udata);
 
-ConfigFile *config_read_path(const char *path);
-ConfigFile *config_read(FILE *file, const char *filename);
+ConfigReader *config_init(void);
 
-const char *config_get_filename(ConfigFile *conf);
+void config_report(ConfigReader *conf, const char *fmt, ...);
 
-bool config_get_error(ConfigFile *conf, int *line, const char **msg);
-
-bool config_get(ConfigFile *conf, const char *key, const char **value, int *line);
-bool config_gets(ConfigFile *conf, const char *key, const char **value);
-bool config_geti(ConfigFile *conf, const char *key, int *value);
-bool config_geti64(ConfigFile *conf, const char *key, int64_t *value);
-bool config_getf32(ConfigFile *conf, const char *key, float *value);
-bool config_getf64(ConfigFile *conf, const char *key, double *value);
-bool config_getb(ConfigFile *conf, const char *key, bool *value);
-/*bool config_getd(ConfigFile *conf, const char *key, _Decimal128 *value);*/
+void *config_alloc(ConfigReader *conf, size_t size);
 
 /*
- * key = rgb(num, num, num)
- * TODO: key = hsv(num, num, num)
+ * The following functions all expect the `key' argument to be of static
+ * storage duration.
  */
-bool config_get_color(ConfigFile *conf, const char *key, RGB *value);
-bool config_get_switches(ConfigFile *conf,
-                         const char *key,
-                         const char *names[],
-                         bool *values[]);
 
-void config_destroy(ConfigFile *conf);
+void config_add_opt(ConfigReader *conf, const char *key, option_callback opt, void *udata);
+
+/*
+ * value must be freed
+ */
+void config_add_opt_s(ConfigReader *conf, const char *key, const char **value);
+
+void config_add_opt_i(ConfigReader *conf, const char *key, int *value);
+
+void config_add_opt_i32(ConfigReader *conf, const char *key, int32_t *value);
+
+void config_add_opt_i64(ConfigReader *conf, const char *key, int64_t *value);
+
+void config_add_opt_f32(ConfigReader *conf, const char *key, float *value);
+
+void config_add_opt_f64(ConfigReader *conf, const char *key, double *value);
+
+void config_add_opt_b(ConfigReader *conf, const char *key, bool *value);
+
+void config_add_opt_color(ConfigReader *conf, const char *key, RGB *value);
+
+void config_add_opt_flags(ConfigReader *conf,
+                          const char *key,
+                          const char *names[],
+                          bool *values[]);
+
+void config_read_file(ConfigReader *conf, const char *path);
+
+void config_destroy(ConfigReader *conf);
 
 #endif

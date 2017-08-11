@@ -8,9 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void config_load_file(Config *cfg, const char *path);
-static bool get_indentation(ConfigFile *cfile, const char *key, int *value);
-static bool get_newline(ConfigFile *cfile, const char *key, const char **value);
+static void indentation_callback(ConfigReader *rdr, const char *str, void *udata);
+static void newline_callback(ConfigReader *rdr, const char *str, void *udata);
 
 void
 config_load_defaults(Config *cfg)
@@ -38,135 +37,103 @@ config_load_defaults(Config *cfg)
 }
 
 static void
-config_load_file(Config *conf, const char *path)
+config_setup_reader(Config *conf, ConfigReader *rdr)
 {
-	ConfigFile *cfile = config_read_path(path);
-	if (!cfile)
-		return;
-
-	int line;
-	const char *msg;
-	if (config_get_error(cfile, &line, &msg)) {
-		fprintf(stderr, "`%s': %d: %s\n", path, line, msg);
-		return;
-	}
-
-	const char *val;
-
-	config_get_color(cfile, "editor.colors.select.foreground", &conf->colors.select.fg);
-	config_get_color(cfile, "editor.colors.select.invisibles", &conf->colors.select.inv);
-	config_get_color(cfile, "editor.colors.select.background", &conf->colors.select.bg);
-	config_get_color(cfile, "editor.colors.select.selection", &conf->colors.select.sel);
-	config_get_color(cfile,
-	                 "editor.colors.select.line-numbers.background",
-	                 &conf->colors.select.line_numbers_bg);
-	config_get_color(cfile, "editor.colors.insert.foreground", &conf->colors.insert.fg);
-	config_get_color(cfile, "editor.colors.insert.invisibles", &conf->colors.insert.inv);
-	config_get_color(cfile, "editor.colors.insert.background", &conf->colors.insert.bg);
-	config_get_color(cfile, "editor.colors.insert.selection", &conf->colors.insert.sel);
-	config_get_color(cfile,
-	                 "editor.colors.insert.line-numbers.background",
-	                 &conf->colors.insert.line_numbers_bg);
-	config_getb(cfile, "editor.line-numbers", &conf->editor.line_numbers);
-	config_geti(cfile, "editor.tab-width", &conf->editor.tab_width);
+	config_add_opt_color(rdr, "editor.colors.select.foreground", &conf->colors.select.fg);
+	config_add_opt_color(rdr, "editor.colors.select.invisibles", &conf->colors.select.inv);
+	config_add_opt_color(rdr, "editor.colors.select.background", &conf->colors.select.bg);
+	config_add_opt_color(rdr, "editor.colors.select.selection", &conf->colors.select.sel);
+	config_add_opt_color(rdr,
+	                     "editor.colors.select.line-numbers.background",
+	                     &conf->colors.select.line_numbers_bg);
+	config_add_opt_color(rdr, "editor.colors.insert.foreground", &conf->colors.insert.fg);
+	config_add_opt_color(rdr, "editor.colors.insert.invisibles", &conf->colors.insert.inv);
+	config_add_opt_color(rdr, "editor.colors.insert.background", &conf->colors.insert.bg);
+	config_add_opt_color(rdr, "editor.colors.insert.selection", &conf->colors.insert.sel);
+	config_add_opt_color(rdr,
+	                     "editor.colors.insert.line-numbers.background",
+	                     &conf->colors.insert.line_numbers_bg);
+	config_add_opt_b(rdr, "editor.line-numbers", &conf->editor.line_numbers);
+	config_add_opt_i(rdr, "editor.tab-width", &conf->editor.tab_width);
 	static const char *invs_names[] = { "tabs", "spaces", "newlines", NULL };
 	bool *invs_vals[] = {
 		&conf->editor.show_tabs,
 		&conf->editor.show_spaces,
 		&conf->editor.show_newlines
 	};
-	config_get_switches(cfile, "editor.show-invisibles", invs_names, invs_vals);
-	get_indentation(cfile, "text.indentation", &conf->text.indentation);
-	get_newline(cfile, "text.default-newline", &conf->text.default_newline);
-
-	config_destroy(cfile);
+	config_add_opt_flags(rdr, "editor.show-invisibles", invs_names, invs_vals);
+	config_add_opt(rdr, "text.indentation", indentation_callback, &conf->text.indentation);
+	config_add_opt(rdr, "text.default-newline", newline_callback, &conf->text.default_newline);
 }
 
 void
 config_load(Config *conf)
 {
-	int line;
-	const char *msg;
-
 	config_load_defaults(conf);
+
+	ConfigReader *rdr = config_init();
+	config_setup_reader(conf, rdr);
 
 	/* PREFIX is set by Makefile */
 	static const char *const sys_cfg_path = PREFIX "/share/werk/system.conf";
 
-	config_load_file(conf, sys_cfg_path);
+	config_read_file(rdr, sys_cfg_path);
 
 	char *home_dir = getenv("HOME");
-	if (!home_dir) {
+	if (home_dir) {
+		size_t home_dir_len = strlen(home_dir);
+
+		char *config_rel = "/.config/werk/user.conf";
+		size_t config_rel_len = strlen(config_rel);
+
+		char config_path[home_dir_len + config_rel_len + 1];
+		memcpy(config_path, home_dir, home_dir_len);
+		memcpy(config_path + home_dir_len, config_rel, config_rel_len + 1);
+
+		config_read_file(rdr, config_path);
+	} else {
 		fprintf(stderr, "warning: could not load configuration file: no $HOME!\n");
-		return;
 	}
-	size_t home_dir_len = strlen(home_dir);
 
-	char *config_rel = "/.config/werk/user.conf";
-	size_t config_rel_len = strlen(config_rel);
-
-	char config_path[home_dir_len + config_rel_len + 1];
-	memcpy(config_path, home_dir, home_dir_len);
-	memcpy(config_path + home_dir_len, config_rel, config_rel_len + 1);
-
-	config_load_file(conf, config_path);
+	config_destroy(rdr);
 }
 
-static bool
-get_indentation(ConfigFile *cfile, const char *key, int *value)
+static void
+indentation_callback(ConfigReader *rdr, const char *str, void *udata)
 {
-	const char *str_val;
-	int line;
-	if (!config_get(cfile, key, &str_val, &line))
-		return false;
+	int *value = udata;
 
-	if (!sparsef(str_val, "%d spaces", value)) {
-		if (*value <= 0) {
-			fprintf(stderr,
-				"%s line %d: invalid: `%s'\n",
-				config_get_filename(cfile),
-				line,
-				str_val);
-
-			return false;
-		}
-		return true;
+	if (!sparsef(str, "%d spaces", value)) {
+		if (*value <= 0)
+			config_report(rdr, "invalid: `%s'\n", str);
+		return;
 	}
 
-	if (sparsef(str_val, "tabs")) {
-		fprintf(stderr,
-		        "%s line %d: expected `ǸUM spaces' or `tabs', not ``%s''\n",
-		        config_get_filename(cfile),
-			line,
-		        str_val);
-
-		return false;
+	if (sparsef(str, "tabs")) {
+		config_report(rdr, "expected `NUM spaces' or `tabs', not ``%s''\n", str);
+		return;
 	}
 
 	*value = 0;
-	return true;
 }
 
-static bool
-get_newline(ConfigFile *cfile, const char *key, const char **value)
+static void
+newline_callback(ConfigReader *rdr, const char *str, void *udata)
 {
-	const char *str_val;
-	int line;
-	if (!config_get(cfile, key, &str_val, &line))
-		return false;
+	const char **value = udata;
 
-	if (!sparsef(str_val, "unix")) {
+	if (!sparsef(str, "unix")) {
 		*value = "\n";
-		return true;
+		return;
 	}
 
-	if (!sparsef(str_val, "dos")) {
+	if (!sparsef(str, "dos")) {
 		*value = "\r\n";
-		return false;
+		return;
 	}
 
 	int unival;
-	if (!sparsef(str_val, "U+%x", &unival)) {
+	if (!sparsef(str, "U+%x", &unival)) {
 		switch (unival) {
 		case 0x000A: /* LF */
 			*value = "\n";
@@ -197,22 +164,12 @@ get_newline(ConfigFile *cfile, const char *key, const char **value)
 			break;
 
 		default:
-			fprintf(stderr,
-				"%s line %d: unknown newline `U+%x'\n",
-				config_get_filename(cfile),
-				line,
-				(unsigned)unival);
-			return false;
-
+			config_report(rdr, "unknown newline `U+%x'\n", (unsigned)unival);
+			break;
 		}
 
-		return true;
+		return;
 	}
 
-	fprintf(stderr,
-		"%s line %d: expected `unix', `dos' or `U+XXXX'\n",
-		config_get_filename(cfile),
-		line);
-
-	return false;
+	config_report(rdr, "%s line %d: expected `unix', `dos' or `U+XXXX'\n");
 }
