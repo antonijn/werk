@@ -456,10 +456,11 @@ buf_move_viewport(Buffer *buf, int wlines, int hlines)
 		BufferMarker new_orig;
 		new_orig.offset = buf->vp_first_line;
 
-		for (int i = 0; i < (dorig_line - vh); ++i)
+		int line_delta = (dorig_line - vh) + 1;
+		for (int i = 0; i < line_delta; ++i)
 			marker_next_line(buf, &new_orig);
 
-		buf->vp_orig_line += (dorig_line - vh);
+		buf->vp_orig_line += line_delta;
 		buf->vp_first_line = new_orig.offset;
 	}
 }
