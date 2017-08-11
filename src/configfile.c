@@ -84,6 +84,8 @@ config_read_file(ConfigReader *conf, const char *path)
 		return;
 	}
 
+	conf->line = 0;
+
 	char line[MAX_LINE_SIZE];
 	while (fgets(line, sizeof(line), file)) {
 		size_t line_length = strlen(line);
