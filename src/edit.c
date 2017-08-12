@@ -1275,6 +1275,7 @@ im_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods)
 static void
 im_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
+	gbuf_delete_grapheme(&buf->gbuf, buf->sel_finish.offset);
 }
 
 /*
@@ -1329,6 +1330,22 @@ werk_on_backspace_press(Window *win, KeyMods mods)
 	} else {
 		Mode *mode = active_buf->mode;
 		mode->on_backspace_press(active_buf, mode, mods);
+	}
+
+	win_redraw(win);
+}
+
+static void
+werk_on_delete_press(Window *win, KeyMods mods)
+{
+	WerkInstance *werk = win->user_data;
+	Buffer *active_buf = werk->active_buf;
+
+	if (active_buf->dialog.active) {
+		/* nop as of yet */
+	} else {
+		Mode *mode = active_buf->mode;
+		mode->on_delete_press(active_buf, mode, mods);
 	}
 
 	win_redraw(win);
@@ -1434,7 +1451,7 @@ werk_init(Window *win, const char **files, int num_files)
 	win->on_key_press = werk_on_key_press;
 	win->on_enter_press = werk_on_enter_press;
 	win->on_backspace_press = werk_on_backspace_press;
-	win->on_delete_press = werk_on_backspace_press;
+	win->on_delete_press = werk_on_delete_press;
 	win->on_close = werk_on_close;
 
 	win_show(win);

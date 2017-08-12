@@ -219,6 +219,10 @@ on_key_press(GtkWidget *widget, GdkEventKey *event, Window *window)
 		if (window->on_backspace_press)
 			window->on_backspace_press(window, m);
 		break;
+	case GDK_KEY_Delete:
+		if (window->on_delete_press)
+			window->on_delete_press(window, m);
+		break;
 	default:
 		if (!isprint(event->keyval))
 			return TRUE;
