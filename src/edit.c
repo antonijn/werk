@@ -122,6 +122,12 @@ static void buf_init(Buffer *buf, WerkInstance *werk);
 static void cmd_dialog_init(Buffer *buf);
 
 /*
+ * Read filename into buffer. On failure resets text to what it was
+ * before the call.
+ */
+static int buf_read(Buffer *buf, const char *filename);
+
+/*
  * Sets `buf->eol' and `buf->eol_size' to the value of the first newline
  * found in the buffer. Otherwise it uses "text.default-newline" from
  * the configuration.
@@ -256,6 +262,38 @@ cmd_dialog_init(Buffer *buf)
 
 	gbuf_init(&buf->dialog.gbuf);
 	buf->dialog.active = false;
+}
+
+static int
+buf_read(Buffer *buf, const char *filename)
+{
+	FILE *in = fopen(filename, "rb");
+	if (!in) {
+		fprintf(stderr, "error opening file `%s'\n", filename);
+		return -1;
+	}
+
+	size_t ln = gbuf_len(&buf->gbuf);
+	char *backup = malloc(ln);
+	if (!backup) {
+		fprintf(stderr, "out of memory\n");
+		return -1;
+	}
+
+	gbuf_strcpy(&buf->gbuf, backup, 0, ln);
+
+	if (gbuf_read(&buf->gbuf, in)) {
+		gbuf_clear(&buf->gbuf);
+		gbuf_insert_text(&buf->gbuf, 0, backup, ln);
+		free(backup);
+		return -1;
+	}
+
+	buf_detect_newline(buf);
+	buf->filename = strdup(filename);
+
+	free(backup);
+	return 0;
 }
 
 static void
@@ -1280,12 +1318,22 @@ werk_on_draw(Window *win, Drawer *d, int wlines, int hlines)
 	draw_cmd_dialog(active_buf, d, wlines, hlines);
 }
 
+/*
+ * Removes buffer from instance.
+ * Does not free buffer resources as of yet.
+ */
 static void
-werk_on_close(Window *win)
+werk_remove_buffer(WerkInstance *werk, Buffer *buf)
 {
-	WerkInstance *werk = win->user_data;
-	/* TODO: free contents of instance */
-	free(werk);
+	if (werk->active_buf == buf) {
+		if (buf->next == buf)
+			werk->active_buf = NULL;
+		else
+			werk->active_buf = buf->next;
+	}
+
+	buf->next->prev = buf->prev;
+	buf->prev->next = buf->next;
 }
 
 /*
@@ -1316,24 +1364,25 @@ werk_add_buffer(WerkInstance *werk)
 
 /*
  * Add file buffer to the instance, and set it as the active buffer.
+ * In case of failure, nothing is changed.
  */
 static Buffer *
 werk_add_file(WerkInstance *werk, const char *path)
 {
 	Buffer *buf = werk_add_buffer(werk);
-
-	FILE *fin = fopen(path, "rb");
-	if (fin) {
-		gbuf_read(&buf->gbuf, fin);
-		fclose(fin);
+	if (buf_read(buf, path)) {
+		werk_remove_buffer(werk, buf);
+		return NULL;
 	}
-
-	buf_detect_newline(buf);
-
-	/* TODO: strdup */
-	buf->filename = path;
-
 	return buf;
+}
+
+static void
+werk_on_close(Window *win)
+{
+	WerkInstance *werk = win->user_data;
+	/* TODO: free contents of instance */
+	free(werk);
 }
 
 void
@@ -1345,12 +1394,11 @@ werk_init(Window *win, const char **files, int num_files)
 
 	config_load(&werk->cfg);
 
-	if (num_files == 0) {
+	for (int i = 0; i < num_files; ++i)
+		werk_add_file(werk, files[i]);
+
+	if (!werk->active_buf)
 		werk_add_buffer(werk);
-	} else {
-		for (int i = 0; i < num_files; ++i)
-			werk_add_file(werk, files[i]);
-	}
 
 	win->on_draw = werk_on_draw;
 	win->on_key_press = werk_on_key_press;

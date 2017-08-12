@@ -38,14 +38,17 @@ static inline size_t gbuf_len(GapBuf *buf)
 }
 
 /*
+ * Completely clears gap buffer;
+ */
+void gbuf_clear(GapBuf *gbuf);
+/*
  * Write buffer contents to file.
  */
 void gbuf_write(GapBuf *gbuf, FILE *out);
 /*
  * Read file `in' to gap buffer.
- * NOTE: Performs no UTF-8 validation as of yet.
  */
-void gbuf_read(GapBuf *gbuf, FILE *in);
+int gbuf_read(GapBuf *gbuf, FILE *in);
 
 /*
  * Insert given text at location `cursor'.

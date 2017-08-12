@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <unistr.h>
 #include <unigbrk.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -141,6 +142,13 @@ gbuf_auto_resize(GapBuf *buf)
  */
 
 void
+gbuf_clear(GapBuf *gbuf)
+{
+	gbuf_destroy(gbuf);
+	gbuf_init(gbuf);
+}
+
+void
 gbuf_write(GapBuf *gbuf, FILE *out)
 {
 	fwrite(gbuf->start, gbuf->gap_offs, 1, out);
@@ -150,18 +158,44 @@ gbuf_write(GapBuf *gbuf, FILE *out)
 	fwrite(snd_part, snd_size, 1, out);
 }
 
-void
+int
 gbuf_read(GapBuf *gbuf, FILE *in)
 {
-	fseek(in, 0, SEEK_END);
-	long fsize = ftell(in);
-	fseek(in, 0, SEEK_SET);
+	if (fseek(in, 0, SEEK_END) < 0) {
+		fprintf(stderr, "error reading buffer: file stream does not support seeking.\n");
+		fprintf(stderr, "are you perhaps trying to open a network stream?\n");
+		return -1;
+	}
 
-	gbuf_resize(gbuf, fsize);
-	fread(gbuf->start, fsize, 1, in);
+	long fsize = ftell(in);
+	if (fsize < 0) {
+		fprintf(stderr, "error reading buffer: ftell() failed.\n");
+		fprintf(stderr, "are you perhaps trying to open a network stream?\n");
+		return -1;
+	}
+
+	if (fseek(in, 0, SEEK_SET) < 0) {
+		fprintf(stderr, "error reading buffer: file stream does not support seeking anymore.\n");
+		return -1;
+	}
+
+
+	if (gbuf_resize(gbuf, fsize))
+		return -1;
+
+	if (fread(gbuf->start, 1, fsize, in) < fsize) {
+		fprintf(stderr, "error reading buffer: fread() failed.\n");
+		return -1;
+	}
+
+	if (u8_check(gbuf->start, fsize)) {
+		fprintf(stderr, "error reading buffer: file is not UTF-8.\n");
+		return -1;
+	}
 
 	gbuf->gap_offs = fsize;
 	gbuf->gap_size = gbuf->size - fsize;
+	return 0;
 }
 
 /* Force gap move */
