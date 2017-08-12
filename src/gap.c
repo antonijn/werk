@@ -366,7 +366,7 @@ gbuf_move_cursor(GapBuf *buf, gbuf_offs pos)
  * - pipes[2] <- stderr
  */
 static pid_t
-opencmd(const char *cmd, int pipes[3])
+opencmd(const char *cmd, const char *const envp[], int pipes[3])
 {
 	int in[2];
 	if (pipe(in) < 0)
@@ -379,6 +379,17 @@ opencmd(const char *cmd, int pipes[3])
 	int err[2];
 	if (pipe(err) < 0)
 		goto out_fderr;
+
+	/* copy these onto the heap because of the fork() call later */
+	char *cmd_copy = strdup(cmd);
+
+	size_t nmemb;
+	for (nmemb = 0; envp[nmemb]; ++nmemb)
+		;
+
+	char **envp_copy = calloc(nmemb, sizeof(char *));
+	for (int i = 0; envp[i]; ++i)
+		envp_copy[i] = strdup(envp[i]);
 
 	pid_t pid = fork();
 	switch (pid) {
@@ -395,10 +406,8 @@ opencmd(const char *cmd, int pipes[3])
 		dup2(err[1], 2);
 
 		char bash[] = "/bin/bash";
-		char *cmd_buf = malloc(strlen(cmd) + 1);
-		strcpy(cmd_buf, cmd);
-		char *args[] = { bash, "-c", cmd_buf, NULL };
-		execv(bash, args);
+		char *args[] = { bash, "-c", cmd_copy, NULL };
+		execve(bash, args, envp_copy);
 
 		/* an error has occured */
 		exit(1);
@@ -481,17 +490,30 @@ pipe_buf_unit(GapBuf *buf,
 
 	return write_start;
 }
+
 /*
- * Pipe buffer text 'start' - 'stop' through command 'cmd', writing output
- * back to the buffer.
+ * Just a convenience function.
  */
 int
 gbuf_pipe(GapBuf *buf, const char *cmd, gbuf_offs start_offs, size_t len)
 {
+	return gbuf_pipe_e(buf, cmd, (const char *const *)environ, start_offs, len);
+}
+
+/*
+ * Pipe using given environment variables.
+ */
+int
+gbuf_pipe_e(GapBuf *buf,
+            const char *cmd,
+            const char *const envp[],
+            gbuf_offs start_offs,
+            size_t len)
+{
 	int ecode = 0;
 
 	int pipes[3];
-	if (opencmd(cmd, pipes) == 0)
+	if (opencmd(cmd, envp, pipes) == 0)
 		return -1;
 
 	/* Set up non-blocking pipe reading */

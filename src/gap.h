@@ -102,7 +102,15 @@ int gbuf_resize(GapBuf *buf, size_t req);
  */
 int gbuf_auto_resize(GapBuf *buf);
 /*
- * Pipe given buffer text through command.
+ * Pipe given buffer text through command, using given environmnt.
+ */
+int gbuf_pipe_e(GapBuf *buf,
+                const char *cmd,
+                const char *const envp[],
+                gbuf_offs start,
+                size_t len);
+/*
+ * Convenience function around gbuf_pipe_e()
  */
 int gbuf_pipe(GapBuf *buf, const char *cmd, gbuf_offs start, size_t len);
 
