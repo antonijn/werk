@@ -12,18 +12,32 @@
 
 #define CMD_DIALOG_WIDTH 30
 
+/* instance of the editor (possibly containing multiple buffers) */
+typedef struct werk_instance WerkInstance;
+
+typedef struct mode Mode;
+
+typedef struct buffer Buffer;
+
 /* used to keep track of locations in the gap buffer */
 typedef struct {
 	gbuf_offs offset;
 	int line, col;
 } BufferMarker;
 
-/* editor mode object */
-typedef struct mode Mode;
-/* instance of the editor (possibly containing multiple buffers) */
-typedef struct werk_instance WerkInstance;
+struct mode {
+	void (*on_key_press)(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
+	void (*on_enter_press)(Buffer *buf, Mode *mode, KeyMods mods);
+	void (*on_backspace_press)(Buffer *buf, Mode *mode, KeyMods mods);
+	void (*on_delete_press)(Buffer *buf, Mode *mode, KeyMods mods);
+	void (*destroy)(Mode *mode);
 
-typedef struct buffer {
+	ColorSet colors;
+
+	Mode *below;
+};
+
+struct buffer {
 	/* Cursor is guaranteed to be at grapheme boundaries */
 	GapBuf gbuf;
 
@@ -52,11 +66,10 @@ typedef struct buffer {
 	struct buffer *next, *prev;
 
 	WerkInstance *werk;
-} Buffer;
+};
 
 struct werk_instance {
 	Config cfg;
-	ColorSet colors;
 
 	/* ring queue */
 	Buffer *active_buf;
@@ -235,10 +248,22 @@ static void draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh);
  */
 static void show_cmd_dialog(Buffer *buf);
 
+
 /*
- * Initialize normal mode (selection mode).
+ * Pop last mode from mode stack.
+ * Release resources used by the mode.
  */
-static Mode *nm_init(Buffer *buf);
+static void pop_mode(Buffer *buf);
+
+/*
+ * Push select mode to mode stack.
+ */
+static void push_select_mode(Buffer *buf);
+
+/*
+ * Push insert mode to mode stack.
+ */
+static void push_insert_mode(Buffer *buf);
 
 static void
 buf_init(Buffer *buf, WerkInstance *werk)
@@ -255,11 +280,11 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	                 = buf->sel_finish.line
 	                 = buf->sel_finish.col = 1;
 
-	buf->mode = nm_init(buf);
-
 	/* is reset later using buf_detect_newline() */
 	buf->eol = werk->cfg.text.default_newline;
 	buf->eol_size = strlen(buf->eol);
+
+	push_select_mode(buf);
 }
 
 static void
@@ -278,8 +303,8 @@ buf_destroy(Buffer *buf)
 	gbuf_destroy(&buf->dialog.gbuf);
 	free((char *)buf->filename);
 
-	/* TODO: also release buf->mode resources.
-	 * But redesign the modal data structures first. */
+	while (buf->mode)
+		pop_mode(buf);
 }
 
 static int
@@ -730,17 +755,17 @@ buf_draw_grapheme(Buffer *buf,
 	u8_next(&ucs, graph);
 
 	if (buf->werk->cfg.editor.show_tabs && !strncmp(graph, "\t", 1)) {
-		drw_set_color(d, buf->werk->colors.inv);
+		drw_set_color(d, buf->mode->colors.inv);
 		drw_draw_text(d, x + (w - 1), y, false, false, u8"⇥", strlen(u8"⇥"));
-		drw_set_color(d, buf->werk->colors.fg);
+		drw_set_color(d, buf->mode->colors.fg);
 	} else if (buf->werk->cfg.editor.show_spaces && !strncmp(graph, " ", 1)) {
-		drw_set_color(d, buf->werk->colors.inv);
+		drw_set_color(d, buf->mode->colors.inv);
 		drw_draw_text(d, x, y, false, false, u8"·", strlen(u8"·"));
-		drw_set_color(d, buf->werk->colors.fg);
+		drw_set_color(d, buf->mode->colors.fg);
 	} else if (buf->werk->cfg.editor.show_newlines && grapheme_is_newline(graph, graph_len)) {
-		drw_set_color(d, buf->werk->colors.inv);
+		drw_set_color(d, buf->mode->colors.inv);
 		drw_draw_text(d, x, y, false, false, u8"↲", strlen(u8"↲"));
-		drw_set_color(d, buf->werk->colors.fg);
+		drw_set_color(d, buf->mode->colors.fg);
 	} else if (uc_is_graph(ucs)) {
 		drw_draw_text(d, x, y, false, false, graph, graph_len);
 	}
@@ -830,12 +855,15 @@ buf_draw_selection(Buffer *buf, Drawer *d, int vw, int vh, int offset_x)
 static void
 buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 {
+	drw_set_color(d, buf->mode->colors.bg);
+	drw_clear(d);
+
 	buf_calc_vp_origin(buf, wlines, hlines);
 
 	int vw, vh;
 	buf_get_viewport(buf, &vw, &vh, wlines, hlines);
 
-	drw_set_color(d, buf->werk->colors.bg);
+	drw_set_color(d, buf->mode->colors.bg);
 	drw_clear(d);
 
 	int logic_x = buf->vp_orig_col;
@@ -844,11 +872,11 @@ buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 	if (buf->werk->cfg.editor.line_numbers) {
 		line_num_width = num_width(line_num + vh) + 1;
 
-		drw_set_color(d, buf->werk->colors.line_numbers_bg);
+		drw_set_color(d, buf->mode->colors.line_numbers_bg);
 		drw_fill_rect(d, 0, 0, line_num_width, vh);
 	}
 
-	drw_set_color(d, buf->werk->colors.sel);
+	drw_set_color(d, buf->mode->colors.sel);
 	buf_draw_selection(buf, d, vw, vh, line_num_width);
 
 	/* draw lines */
@@ -858,7 +886,7 @@ buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 	line_start.line = buf->vp_orig_line;
 	line_start.col = buf->vp_orig_col;
 
-	drw_set_color(d, buf->werk->colors.fg);
+	drw_set_color(d, buf->mode->colors.fg);
 	for (int i = 0; i < vh; ++i) {
 		if (!buf_draw_line(buf, d, line_start, vw, vh, logic_x, line_num_width, i))
 			break;
@@ -1004,7 +1032,6 @@ show_cmd_dialog(Buffer *buf)
 	buf->dialog.active = true;
 }
 
-
 /*
  *                      _       _   _             _
  *  _ __ ___   ___   __| | __ _| | | | ___   __ _(_) ___
@@ -1014,52 +1041,46 @@ show_cmd_dialog(Buffer *buf)
  *                                          |___/
  */
 
-/* aka Mode */
-struct mode {
-	void *data;
-
-	Mode *(*on_key_press)(Mode *mode, KeyMods mods, const char *input, size_t len);
-	Mode *(*on_enter_press)(Mode *mode, KeyMods mods);
-	Mode *(*on_backspace_press)(Mode *mode, KeyMods mods);
-	Mode *(*on_delete_press)(Mode *mode, KeyMods mods);
-};
-
-/* Function prefixes:
- *
- * nm* - normal mode functions
- * im* - insert mode functions
- * pm* - parenthesis mode functions
- */
-
-typedef struct {
-	Mode base;
-	Buffer *buf;
-} NormalMode;
-
-static Mode *nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len);
-static Mode *nm_on_enter_press(Mode *mode, KeyMods mods);
-static Mode *nm_on_backspace_press(Mode *mode, KeyMods mods);
-static Mode *nm_on_delete_press(Mode *mode, KeyMods mods);
-
-static Mode *im_init(NormalMode *nm_parent);
-
-static Mode *
-nm_init(Buffer *buf)
+static void
+pop_mode(Buffer *buf)
 {
-	NormalMode *nmode = malloc(sizeof(NormalMode));
-	Mode *mode = &nmode->base;
+	Mode *mode = buf->mode;
+	if (!mode)
+		return;
 
-	nmode->buf = buf;
+	mode->destroy(mode);
+	buf->mode = mode->below;
+}
 
-	mode->data = nmode;
-	mode->on_key_press = nm_on_key_press;
-	mode->on_enter_press = nm_on_enter_press;
-	mode->on_backspace_press = nm_on_backspace_press;
-	mode->on_delete_press = nm_on_delete_press;
+static void sm_destroy(Mode *mode);
+static void sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
+static void sm_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods);
+static void sm_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods);
+static void sm_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods);
 
-	buf->werk->colors = buf->werk->cfg.colors.select;
+static void
+push_select_mode(Buffer *buf)
+{
+	Mode *mode = malloc(sizeof(Mode));
+	if (!mode)
+		return;
 
-	return mode;
+	mode->on_key_press = sm_on_key_press;
+	mode->on_enter_press = sm_on_enter_press;
+	mode->on_backspace_press = sm_on_backspace_press;
+	mode->on_delete_press = sm_on_delete_press;
+	mode->destroy = sm_destroy;
+
+	mode->colors = buf->werk->cfg.colors.select;
+
+	mode->below = buf->mode;
+	buf->mode = mode;
+}
+
+static void
+sm_destroy(Mode *mode)
+{
+	free(mode);
 }
 
 static void
@@ -1092,14 +1113,11 @@ select_prev_line(Buffer *buf, bool extend)
 	buf->sel_start = next_line;
 }
 
-static Mode *
-nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
+static void
+sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len)
 {
-	NormalMode *nmode = mode->data;
-	Buffer *buf = nmode->buf;
-
 	if (len != 1)
-		return mode;
+		return;
 
 	if (mods & KM_CONTROL) {
 		switch (input[0]) {
@@ -1111,38 +1129,48 @@ nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
 			break;
 		}
 
-		return mode;
+		return;
 	}
 
 	switch (input[0]) {
 	case 'i':
 		buf->sel_finish = buf->sel_start;
-		return im_init(mode->data);
+		push_insert_mode(buf);
+		break;
+
 	case 'a':
 		buf->sel_start = buf->sel_finish;
-		return im_init(mode->data);
+		push_insert_mode(buf);
+		break;
+
 	case 'c':
 		marker_sort_pair(&buf->sel_start, &buf->sel_finish);
 		buf_delete_range(buf, buf->sel_start, buf->sel_finish);
 		buf->sel_finish = buf->sel_start;
-		return im_init(mode->data);
+		push_insert_mode(buf);
+		break;
+
 	case 'd':
 		marker_sort_pair(&buf->sel_start, &buf->sel_finish);
 		buf_delete_range(buf, buf->sel_start, buf->sel_finish);
 		buf->sel_finish = buf->sel_start;
 		break;
+
 	case 'L':
 	case 'l':
 		buf_move_cursor(buf, 1, input[0] == 'L');
 		break;
+
 	case 'H':
 	case 'h':
 		buf_move_cursor(buf, -1, input[0] == 'H');
 		break;
+
 	case 'J':
 	case 'j':
 		select_next_line(buf, input[0] == 'J');
 		break;
+
 	case 'K':
 	case 'k':
 		select_prev_line(buf, input[0] == 'K');
@@ -1151,120 +1179,102 @@ nm_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
 	case '.':
 		buf->werk->active_buf = buf->prev;
 		break;
+
 	case '/':
 		buf->werk->active_buf = buf->next;
 		break;
 	}
-
-	return mode;
 }
 
-static Mode *
-nm_on_enter_press(Mode *mode, KeyMods mods)
+static void
+sm_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	return mode;
 }
 
-static Mode *
-nm_on_backspace_press(Mode *mode, KeyMods mods)
+static void
+sm_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	return mode;
 }
 
-static Mode *
-nm_on_delete_press(Mode *mode, KeyMods mods)
+static void
+sm_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	return mode;
 }
 
-typedef struct {
-	Mode base;
-	Buffer *buf;
-	Mode *parent;
-} InsertMode;
+static void im_destroy(Mode *mode);
+static void im_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
+static void im_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods);
+static void im_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods);
+static void im_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods);
 
-static Mode *im_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len);
-static Mode *im_on_enter_press(Mode *mode, KeyMods mods);
-static Mode *im_on_backspace_press(Mode *mode, KeyMods mods);
-static Mode *im_on_delete_press(Mode *mode, KeyMods mods);
-
-static Mode *
-im_init(NormalMode *nm_parent)
+static void
+push_insert_mode(Buffer *buf)
 {
-	InsertMode *imode = malloc(sizeof(InsertMode));
-	Mode *mode = &imode->base;
+	Mode *mode = malloc(sizeof(Mode));
+	if (!mode)
+		return;
 
-	imode->parent = &nm_parent->base;
-	imode->buf = nm_parent->buf;
-
-	mode->data = imode;
 	mode->on_key_press = im_on_key_press;
 	mode->on_enter_press = im_on_enter_press;
 	mode->on_backspace_press = im_on_backspace_press;
 	mode->on_delete_press = im_on_delete_press;
+	mode->destroy = im_destroy;
 
-	nm_parent->buf->werk->colors = nm_parent->buf->werk->cfg.colors.insert;
+	mode->colors = buf->werk->cfg.colors.insert;
 
-	return mode;
+	mode->below = buf->mode;
+	buf->mode = mode;
 }
 
-static Mode *
-im_on_key_press(Mode *mode, KeyMods mods, const char *input, size_t len)
+static void
+im_destroy(Mode *mode)
 {
-	InsertMode *imode = mode->data;
+	free(mode);
+}
 
+static void
+im_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len)
+{
 	if ((mods & KM_CONTROL) == 0) {
-		buf_insert_input_string(imode->buf, input, len);
-		return mode;
+		buf_insert_input_string(buf, input, len);
+		return;
 	}
 
 	if (len != 1)
-		return mode;
+		return;
 
 	switch (input[0]) {
 	case 'd':
-		show_cmd_dialog(imode->buf);
-		return mode;
-	case '[':
-		/* UNELEGANT HACKY SOLUTION */
-		imode->buf->werk->colors = imode->buf->werk->cfg.colors.select;
-		/* END OF UNELEGANT HACKY SOLUTION */
+		show_cmd_dialog(buf);
+		break;
 
-		mode = imode->parent;
-		free(imode);
-		return imode->parent;
+	case '[':
+		pop_mode(buf);
+		break;
+
 	case 's':
-		buf_save(imode->buf);
+		buf_save(buf);
 		break;
 	}
-
-	return mode;
 }
 
-static Mode *
-im_on_enter_press(Mode *mode, KeyMods mods)
+static void
+im_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	InsertMode *imode = mode->data;
-	Buffer *buf = imode->buf;
-
-	im_on_key_press(mode, mods, buf->eol, buf->eol_size);
-	return mode;
+	im_on_key_press(buf, mode, mods, buf->eol, buf->eol_size);
 }
 
-static Mode *
-im_on_backspace_press(Mode *mode, KeyMods mods)
+static void
+im_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	InsertMode *imode = mode->data;
-	gbuf_offs cur = imode->buf->sel_finish.offset;
-	buf_move_cursor(imode->buf, -1, false);
-	gbuf_backspace_grapheme(&imode->buf->gbuf, cur);
-	return mode;
+	gbuf_offs cur = buf->sel_finish.offset;
+	buf_move_cursor(buf, -1, false);
+	gbuf_backspace_grapheme(&buf->gbuf, cur);
 }
 
-static Mode *
-im_on_delete_press(Mode *mode, KeyMods mods)
+static void
+im_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	return mode;
 }
 
 /*
@@ -1286,7 +1296,7 @@ werk_on_key_press(Window *win, KeyMods mods, const char *input, size_t len)
 		cmd_dialog_on_key_press(active_buf, mods, input, len);
 	} else {
 		Mode *mode = active_buf->mode;
-		active_buf->mode = mode->on_key_press(mode, mods, input, len);
+		mode->on_key_press(active_buf, mode, mods, input, len);
 	}
 
 	win_redraw(win);
@@ -1302,7 +1312,7 @@ werk_on_enter_press(Window *win, KeyMods mods)
 		cmd_dialog_on_enter_press(active_buf, mods);
 	} else {
 		Mode *mode = active_buf->mode;
-		active_buf->mode = mode->on_enter_press(mode, mods);
+		mode->on_enter_press(active_buf, mode, mods);
 	}
 
 	win_redraw(win);
@@ -1318,7 +1328,7 @@ werk_on_backspace_press(Window *win, KeyMods mods)
 		cmd_dialog_on_backspace_press(active_buf, mods);
 	} else {
 		Mode *mode = active_buf->mode;
-		active_buf->mode = mode->on_backspace_press(mode, mods);
+		mode->on_backspace_press(active_buf, mode, mods);
 	}
 
 	win_redraw(win);
@@ -1330,8 +1340,6 @@ werk_on_draw(Window *win, Drawer *d, int wlines, int hlines)
 	WerkInstance *werk = win->user_data;
 	Buffer *active_buf = werk->active_buf;
 
-	drw_set_color(d, werk->colors.bg);
-	drw_clear(d);
 	buf_draw(active_buf, d, wlines, hlines);
 	draw_cmd_dialog(active_buf, d, wlines, hlines);
 }
