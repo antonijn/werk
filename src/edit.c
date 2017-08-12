@@ -122,6 +122,13 @@ static void buf_init(Buffer *buf, WerkInstance *werk);
 static void cmd_dialog_init(Buffer *buf);
 
 /*
+ * Destroy all resources associated with buffer.
+ * This should probably not be called directy, but rather called
+ * implicitly by werk_remove_buffer().
+ */
+static void buf_destroy(Buffer *buf);
+
+/*
  * Read filename into buffer. On failure resets text to what it was
  * before the call.
  */
@@ -262,6 +269,17 @@ cmd_dialog_init(Buffer *buf)
 
 	gbuf_init(&buf->dialog.gbuf);
 	buf->dialog.active = false;
+}
+
+static void
+buf_destroy(Buffer *buf)
+{
+	gbuf_destroy(&buf->gbuf);
+	gbuf_destroy(&buf->dialog.gbuf);
+	free((char *)buf->filename);
+
+	/* TODO: also release buf->mode resources.
+	 * But redesign the modal data structures first. */
 }
 
 static int
@@ -1334,6 +1352,9 @@ werk_remove_buffer(WerkInstance *werk, Buffer *buf)
 
 	buf->next->prev = buf->prev;
 	buf->prev->next = buf->next;
+
+	buf_destroy(buf);
+	free(buf);
 }
 
 /*
@@ -1381,7 +1402,8 @@ static void
 werk_on_close(Window *win)
 {
 	WerkInstance *werk = win->user_data;
-	/* TODO: free contents of instance */
+	while (werk->active_buf)
+		werk_remove_buffer(werk, werk->active_buf);
 	free(werk);
 }
 
