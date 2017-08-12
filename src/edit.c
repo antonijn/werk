@@ -1433,13 +1433,14 @@ werk_on_close(Window *win)
 }
 
 void
-werk_init(Window *win, const char **files, int num_files)
+werk_init(Window *win, const char **files, int num_files, ConfigReader *crdr)
 {
 	WerkInstance *werk = malloc(sizeof(WerkInstance));
 	memset(werk, 0, sizeof(*werk));
 	win->user_data = werk;
 
-	config_load(&werk->cfg);
+	config_load(&werk->cfg, crdr);
+	config_destroy(crdr);
 
 	for (int i = 0; i < num_files; ++i)
 		werk_add_file(werk, files[i]);

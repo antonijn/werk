@@ -59,6 +59,7 @@ To run:
     ✔ Show invisible characters
         {editor.show-invisibles = all/none/tabs,spaces,newlines}
     ✔ Color schemes {editor.colors.*}
+    ✔ Customizable GTK font {gui.font}
     ✘ Syntax highlighting
     ✘ Scroll bar
     ✘ Buffer overview
@@ -91,6 +92,9 @@ To run:
 
 
 Example of a configuration file:
+
+  [gui]
+  font = Misc Fixed Semicondensed 10
 
   [text]
   # default is `indentation = tabs'

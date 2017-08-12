@@ -80,11 +80,9 @@ config_setup_reader(Config *conf, ConfigReader *rdr)
 }
 
 void
-config_load(Config *conf)
+config_load(Config *conf, ConfigReader *rdr)
 {
 	config_load_defaults(conf);
-
-	ConfigReader *rdr = config_init();
 	config_setup_reader(conf, rdr);
 
 	static const char *const sys_cfg_path = "/etc/werk/system.conf";
@@ -106,8 +104,6 @@ config_load(Config *conf)
 	} else {
 		fprintf(stderr, "warning: could not load configuration file: no $HOME!\n");
 	}
-
-	config_destroy(rdr);
 }
 
 static void

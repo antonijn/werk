@@ -382,12 +382,17 @@ gtk_spawner_ex(void)
 }
 
 int
-werk_gtk_main(const char **filenames, int num_filenames)
+werk_gtk_main(const char **filenames, int num_filenames, ConfigReader *rdr)
 {
-	font = pango_font_description_from_string("Monospace 10");
+	const char *font_desc_str = "Monospace 10";
+	config_add_opt_s(rdr, "gui.font", &font_desc_str);
 
 	Window *win = gtk_spawner_ex();
-	werk_init(win, filenames, num_filenames);
+	werk_init(win, filenames, num_filenames, rdr);
+
+	font = pango_font_description_from_string(font_desc_str);
+	free((char *)font_desc_str);
+
 	gtk_main();
 	return 0;
 }

@@ -1,6 +1,7 @@
 #ifndef CFG_H
 #define CFG_H
 
+#include "cfgprs.h"
 #include "win.h"
 
 #include <stdbool.h>
@@ -38,6 +39,6 @@ typedef struct {
  * Load ~/.config/werk/user.conf and /etc/werk/system.conf into
  * given configuration struct.
  */
-void config_load(Config *cfg);
+void config_load(Config *cfg, ConfigReader *rdr);
 
 #endif

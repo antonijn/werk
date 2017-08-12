@@ -141,14 +141,17 @@ main(int argc, char **argv)
 		ui_mode = "term";
 	}
 
+	/* is destroyed by werk_init() */
+	ConfigReader *conf = config_init();
+
 	if (!strcmp(ui_mode, "gui")) {
-		if (werk_gtk_main(filenames, filename_count))
+		if (werk_gtk_main(filenames, filename_count, conf))
 			ecode = 1;
 	} else
 #endif
 #ifdef HAS_NCURSES
 	if (!strcmp(ui_mode, "term")) {
-		if (werk_ncurses_main(filenames, filename_count))
+		if (werk_ncurses_main(filenames, filename_count, conf))
 			ecode = 1;
 	} else
 #endif
