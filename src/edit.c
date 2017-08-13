@@ -8,121 +8,10 @@
 #include <uniwidth.h>
 #include "cfg.h"
 #include "edit.h"
+#include "mode.h"
 #include "gap.h"
 
 #define CMD_DIALOG_WIDTH 30
-
-/* instance of the editor (possibly containing multiple buffers) */
-typedef struct werk_instance WerkInstance;
-
-typedef struct mode Mode;
-
-typedef struct buffer Buffer;
-
-/* used to keep track of locations in the gap buffer */
-typedef struct {
-	gbuf_offs offset;
-	int line, col;
-} BufferMarker;
-
-struct mode {
-	void (*on_key_press)(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
-	void (*on_enter_press)(Buffer *buf, Mode *mode, KeyMods mods);
-	void (*on_backspace_press)(Buffer *buf, Mode *mode, KeyMods mods);
-	void (*on_delete_press)(Buffer *buf, Mode *mode, KeyMods mods);
-	void (*destroy)(Mode *mode);
-
-	ColorSet colors;
-
-	Mode *below;
-};
-
-struct buffer {
-	/* Cursor is guaranteed to be at grapheme boundaries */
-	GapBuf gbuf;
-
-	/* Viewport top left */
-	gbuf_offs vp_first_line;       /* first char in first line in viewport */
-	int vp_orig_line, vp_orig_col; /* first viewport line, column */
-
-	/* Selection markers */
-	BufferMarker sel_start, sel_finish;
-
-	/* Buffer-specific newline character */
-	const char *eol;
-	size_t eol_size;
-
-	const char *filename;
-
-	Mode *mode;
-
-	struct {
-		bool active;
-		int w; /* width */
-		GapBuf gbuf;
-	} dialog;
-
-	/* part of ring queue */
-	struct buffer *next, *prev;
-
-	WerkInstance *werk;
-};
-
-struct werk_instance {
-	Config cfg;
-
-	/* ring queue */
-	Buffer *active_buf;
-};
-
-/*  _            __  __             _             _
- * | |__  _   _ / _|/ _| ___ _ __  | | ___   __ _(_) ___
- * | '_ \| | | | |_| |_ / _ \ '__| | |/ _ \ / _` | |/ __|
- * | |_) | |_| |  _|  _|  __/ |    | | (_) | (_| | | (__
- * |_.__/ \__,_|_| |_|  \___|_|    |_|\___/ \__, |_|\___|
- *                                          |___/
- */
-
-/* Returns true for all Unicode newlines */
-static bool grapheme_is_newline(const char *str, size_t len);
-
-/* CJK characters are typically width 2, tabs are variable-width */
-static int grapheme_width(const char *str, size_t n, int col, int tab_width);
-
-/*
- * Calculate column number of character identifier by given offset.
- */
-static int grapheme_column(Buffer *buf, gbuf_offs ofs);
-
-/*
- * Moves `marker' to next grapheme, stores the current grapheme in `str'
- * and its size in `size'.
- */
-static int marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker);
-/*
- * Moves `marker' to previous grapheme, stores the current grapheme in
- * `str' and its size in `size'.
- */
-static int marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker);
-
-/*
- * Move `marker' to start of next line.
- */
-static void marker_next_line(Buffer *buf, BufferMarker *marker);
-/*
- * Move `marker' to start of current line.
- */
-static void marker_start_of_line(Buffer *buf, BufferMarker *marker);
-/*
- * Move `marker' to last character before newline.
- */
-static void marker_end_of_line(Buffer *buf, BufferMarker *marker);
-
-/*
- * Swap `a' and `b' if `a' > `b'.
- */
-static void marker_sort_pair(BufferMarker *a, BufferMarker *b);
-
 
 /*
  * Initialize empty buffer.
@@ -153,17 +42,6 @@ static int buf_read(Buffer *buf, const char *filename);
  * the configuration.
  */
 static void buf_detect_newline(Buffer *buf);
-
-/*
- * Return whether selection is merely a cursor.
- */
-static bool buf_is_selection_degenerate(Buffer *buf);
-
-/*
- * Move cursor by `delta' graphemes. Positive `delta' means movement
- * to the right, negative to the left.
- */
-static void buf_move_cursor(Buffer *buf, int delta, bool extend);
 
 /*
  * Calculate viewport origin to make sure that the end of the selection
@@ -203,22 +81,6 @@ static bool buf_draw_line(Buffer *buf,
 static void buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines);
 
 /*
- * Pipe buffer selection through command `str'.
- * See also: gbuf_pipe()
- */
-static void buf_pipe_selection(Buffer *buf, const char *str);
-
-/*
- * Insert string at end of selection.
- */
-static void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
-
-/*
- * Save `buf' to `buf->filename' if possible.
- */
-static int buf_save(Buffer *buf);
-
-/*
  * Convert line and column number to position on screen.
  */
 static void buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *y);
@@ -243,27 +105,6 @@ static void cmd_dialog_on_enter_press(Buffer *buf, KeyMods mods);
  */
 static void draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh);
 
-/*
- * Activate command dialog.
- */
-static void show_cmd_dialog(Buffer *buf);
-
-
-/*
- * Pop last mode from mode stack.
- * Release resources used by the mode.
- */
-static void pop_mode(Buffer *buf);
-
-/*
- * Push select mode to mode stack.
- */
-static void push_select_mode(Buffer *buf);
-
-/*
- * Push insert mode to mode stack.
- */
-static void push_insert_mode(Buffer *buf);
 
 static void
 buf_init(Buffer *buf, WerkInstance *werk)
@@ -373,13 +214,13 @@ buf_detect_newline(Buffer *buf)
 	buf->eol_size = strlen(dflt);
 }
 
-static bool
+bool
 buf_is_selection_degenerate(Buffer *buf)
 {
 	return buf->sel_start.offset == buf->sel_finish.offset;
 }
 
-static bool
+bool
 grapheme_is_newline(const char *str, size_t len)
 {
 	switch (len) {
@@ -401,7 +242,7 @@ grapheme_is_newline(const char *str, size_t len)
 	}
 }
 
-static int
+int
 grapheme_width(const char *str, size_t n, int col, int tab_width)
 {
 	if (n == 1 && str[0] == '\t') {
@@ -417,7 +258,7 @@ grapheme_width(const char *str, size_t n, int col, int tab_width)
 	return uc_width(base, "C");
 }
 
-static int
+int
 grapheme_column(Buffer *buf, gbuf_offs ofs)
 {
 	const char *bufstop = buf->gbuf.start;
@@ -454,7 +295,7 @@ grapheme_column(Buffer *buf, gbuf_offs ofs)
 	return res;
 }
 
-static int
+int
 marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 {
 	const char *s;
@@ -482,7 +323,7 @@ marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 	return 0;
 }
 
-static int
+int
 marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 {
 	const char *s;
@@ -508,7 +349,7 @@ marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 	return 0;
 }
 
-static void
+void
 marker_next_line(Buffer *buf, BufferMarker *res)
 {
 	const char *str;
@@ -519,7 +360,7 @@ marker_next_line(Buffer *buf, BufferMarker *res)
 			break;
 }
 
-static void
+void
 marker_start_of_line(Buffer *buf, BufferMarker *res)
 {
 	const char *str;
@@ -531,7 +372,7 @@ marker_start_of_line(Buffer *buf, BufferMarker *res)
 	} while (marker_prev(buf, &str, &len, res) == 0);
 }
 
-static void
+void
 marker_end_of_line(Buffer *buf, BufferMarker *res)
 {
 	BufferMarker prev;
@@ -546,7 +387,7 @@ marker_end_of_line(Buffer *buf, BufferMarker *res)
 	}
 }
 
-static void
+void
 marker_sort_pair(BufferMarker *a, BufferMarker *b)
 {
 	if (a->offset >= b->offset) {
@@ -555,15 +396,14 @@ marker_sort_pair(BufferMarker *a, BufferMarker *b)
 		*b = temp;
 	}
 }
-
-static void
+void
 buf_delete_range(Buffer *buf, BufferMarker a, BufferMarker b)
 {
 	marker_sort_pair(&a, &b);
 	gbuf_delete_text(&buf->gbuf, a.offset, b.offset - a.offset);
 }
 
-static void
+void
 buf_move_cursor(Buffer *buf, int delta, bool extend)
 {
 	if (delta > 0) {
@@ -583,7 +423,7 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 		buf->sel_start = buf->sel_finish;
 }
 
-static void
+void
 buf_pipe_selection(Buffer *buf, const char *str)
 {
 	gbuf_offs start = buf->sel_start.offset;
@@ -623,7 +463,7 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	}
 }
 
-static void
+void
 buf_insert_input_string(Buffer *buf, const char *input, size_t len)
 {
 	if (!strncmp(input, "\t", 1)) {
@@ -920,7 +760,7 @@ buf_get_line_col_position(Buffer *buf, int l, int c, int w, int h, int *x, int *
 		*y = l - orig_y;
 }
 
-static int
+int
 buf_save(Buffer *buf)
 {
 	if (!buf->filename)
@@ -1025,257 +865,11 @@ draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh)
 	drw_place_caret(d, x + num_show, y, true);
 }
 
-static void
+void
 show_cmd_dialog(Buffer *buf)
 {
 	buf->dialog.w = CMD_DIALOG_WIDTH;
 	buf->dialog.active = true;
-}
-
-/*
- *                      _       _   _             _
- *  _ __ ___   ___   __| | __ _| | | | ___   __ _(_) ___
- * | '_ ` _ \ / _ \ / _` |/ _` | | | |/ _ \ / _` | |/ __|
- * | | | | | | (_) | (_| | (_| | | | | (_) | (_| | | (__
- * |_| |_| |_|\___/ \__,_|\__,_|_| |_|\___/ \__, |_|\___|
- *                                          |___/
- */
-
-static void
-pop_mode(Buffer *buf)
-{
-	Mode *mode = buf->mode;
-	if (!mode)
-		return;
-
-	mode->destroy(mode);
-	buf->mode = mode->below;
-}
-
-static void sm_destroy(Mode *mode);
-static void sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
-static void sm_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods);
-static void sm_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods);
-static void sm_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods);
-
-static void
-push_select_mode(Buffer *buf)
-{
-	Mode *mode = malloc(sizeof(Mode));
-	if (!mode)
-		return;
-
-	mode->on_key_press = sm_on_key_press;
-	mode->on_enter_press = sm_on_enter_press;
-	mode->on_backspace_press = sm_on_backspace_press;
-	mode->on_delete_press = sm_on_delete_press;
-	mode->destroy = sm_destroy;
-
-	mode->colors = buf->werk->cfg.colors.select;
-
-	mode->below = buf->mode;
-	buf->mode = mode;
-}
-
-static void
-sm_destroy(Mode *mode)
-{
-	free(mode);
-}
-
-static void
-select_next_line(Buffer *buf, bool extend)
-{
-	BufferMarker next_line = buf->sel_finish;
-	BufferMarker line_start = next_line;
-
-	marker_next_line(buf, &next_line);
-	buf->sel_finish = next_line;
-
-	if (!extend || line_start.col != 1) {
-		marker_start_of_line(buf, &line_start);
-		buf->sel_start = line_start;
-	}
-}
-
-static void
-select_prev_line(Buffer *buf, bool extend)
-{
-	BufferMarker line_start = buf->sel_finish;
-
-	marker_start_of_line(buf, &line_start);
-	marker_prev(buf, NULL, NULL, &line_start);
-	marker_start_of_line(buf, &line_start);
-	buf->sel_finish = line_start;
-
-	BufferMarker next_line = line_start;
-	marker_next_line(buf, &next_line);
-	buf->sel_start = next_line;
-}
-
-static void
-sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len)
-{
-	if (len != 1)
-		return;
-
-	if (mods & KM_CONTROL) {
-		switch (input[0]) {
-		case 'd':
-			show_cmd_dialog(buf);
-			break;
-		case 's':
-			buf_save(buf);
-			break;
-		}
-
-		return;
-	}
-
-	switch (input[0]) {
-	case 'i':
-		buf->sel_finish = buf->sel_start;
-		push_insert_mode(buf);
-		break;
-
-	case 'a':
-		buf->sel_start = buf->sel_finish;
-		push_insert_mode(buf);
-		break;
-
-	case 'c':
-		marker_sort_pair(&buf->sel_start, &buf->sel_finish);
-		buf_delete_range(buf, buf->sel_start, buf->sel_finish);
-		buf->sel_finish = buf->sel_start;
-		push_insert_mode(buf);
-		break;
-
-	case 'd':
-		marker_sort_pair(&buf->sel_start, &buf->sel_finish);
-		buf_delete_range(buf, buf->sel_start, buf->sel_finish);
-		buf->sel_finish = buf->sel_start;
-		break;
-
-	case 'L':
-	case 'l':
-		buf_move_cursor(buf, 1, input[0] == 'L');
-		break;
-
-	case 'H':
-	case 'h':
-		buf_move_cursor(buf, -1, input[0] == 'H');
-		break;
-
-	case 'J':
-	case 'j':
-		select_next_line(buf, input[0] == 'J');
-		break;
-
-	case 'K':
-	case 'k':
-		select_prev_line(buf, input[0] == 'K');
-		break;
-
-	case '.':
-		buf->werk->active_buf = buf->prev;
-		break;
-
-	case '/':
-		buf->werk->active_buf = buf->next;
-		break;
-	}
-}
-
-static void
-sm_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods)
-{
-}
-
-static void
-sm_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods)
-{
-}
-
-static void
-sm_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods)
-{
-}
-
-static void im_destroy(Mode *mode);
-static void im_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
-static void im_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods);
-static void im_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods);
-static void im_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods);
-
-static void
-push_insert_mode(Buffer *buf)
-{
-	Mode *mode = malloc(sizeof(Mode));
-	if (!mode)
-		return;
-
-	mode->on_key_press = im_on_key_press;
-	mode->on_enter_press = im_on_enter_press;
-	mode->on_backspace_press = im_on_backspace_press;
-	mode->on_delete_press = im_on_delete_press;
-	mode->destroy = im_destroy;
-
-	mode->colors = buf->werk->cfg.colors.insert;
-
-	mode->below = buf->mode;
-	buf->mode = mode;
-}
-
-static void
-im_destroy(Mode *mode)
-{
-	free(mode);
-}
-
-static void
-im_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len)
-{
-	if ((mods & KM_CONTROL) == 0) {
-		buf_insert_input_string(buf, input, len);
-		return;
-	}
-
-	if (len != 1)
-		return;
-
-	switch (input[0]) {
-	case 'd':
-		show_cmd_dialog(buf);
-		break;
-
-	case '[':
-		pop_mode(buf);
-		break;
-
-	case 's':
-		buf_save(buf);
-		break;
-	}
-}
-
-static void
-im_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods)
-{
-	im_on_key_press(buf, mode, mods, buf->eol, buf->eol_size);
-}
-
-static void
-im_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods)
-{
-	gbuf_offs cur = buf->sel_finish.offset;
-	buf_move_cursor(buf, -1, false);
-	gbuf_backspace_grapheme(&buf->gbuf, cur);
-}
-
-static void
-im_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods)
-{
-	gbuf_delete_grapheme(&buf->gbuf, buf->sel_finish.offset);
 }
 
 /*
