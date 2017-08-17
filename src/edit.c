@@ -807,8 +807,7 @@ cmd_dialog_on_enter_press(Buffer *buf, KeyMods mods)
 	buf->dialog.active = false;
 
 	/* clear gap buf */
-	gbuf_destroy(gbuf);
-	gbuf_init(gbuf);
+	gbuf_clear(gbuf);
 }
 
 static void
