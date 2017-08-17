@@ -440,56 +440,6 @@ out_fdout:
 out_fdin:
 	return -1;
 }
-/*
- * Only used by gbuf_pipe()
- *
- * Pipes a continuous unit of buffer text (not containing the gap) through
- * the given pipes.
- *
- * write_start is where the running command can start writing its output,
- * this value may coincide with start, and may be inside the buffer gap.
- * The function makes sure not to overwrite any text before it has been
- * written to pipes[0].
- *
- * Note that pipes[1] should be set to non-blocking reading.
- */
-static char *
-pipe_buf_unit(GapBuf *buf,
-             int pipes[3],
-             char *write_start,
-             char *start,
-             char *stop)
-{
-	const size_t max_bsize = 512;
-
-	char *read_from = start;
-	while (read_from < stop) {
-		size_t bsize = stop - read_from;
-		if (bsize > max_bsize)
-			bsize = max_bsize;
-
-		if (write(pipes[0], read_from, bsize) < 0)
-			return NULL;
-
-		size_t writable = read_from - write_start + bsize;
-
-		/* pipes[1] should be set to non-blocking */
-		ssize_t write_back = read(pipes[1], write_start, writable);
-
-		if (write_back < 0) {
-			if (errno != EAGAIN && errno != EWOULDBLOCK)
-				return NULL;
-
-			/* io would have blocked */
-			write_back = 0;
-		}
-
-		write_start += write_back;
-		read_from += bsize;
-	}
-
-	return write_start;
-}
 
 /*
  * Just a convenience function.
@@ -513,70 +463,45 @@ gbuf_pipe_e(GapBuf *buf,
 	int ecode = 0;
 
 	int pipes[3];
-	if (opencmd(cmd, envp, pipes) == 0)
+	if (opencmd(cmd, envp, pipes) < 0)
 		return -1;
-
-	/* Set up non-blocking pipe reading */
-	int flags = fcntl(pipes[1], F_GETFL, 0);
-	fcntl(pipes[1], F_SETFL, flags | O_NONBLOCK);
 
 	char *start = offs_to_ptr(buf, start_offs);
 	char *stop = offs_to_ptr(buf, start_offs + len);
 
-	char *write_start = start;
-	if (start < (buf->start + buf->gap_offs) && stop > (buf->start + buf->gap_offs)) {
-		/* Section contains gap */
+	char *gap_start = buf->start + buf->gap_offs;
+	char *gap_stop = gap_start + buf->gap_size;
 
-		write_start = pipe_buf_unit(buf,
-		                            pipes,
-		                            write_start,
-		                            start,
-		                            (buf->start + buf->gap_offs));
-		if (write_start == NULL) {
+	if (start <= gap_start && stop >= gap_stop) {
+		if (write(pipes[0], start, gap_start - start) < 0) {
 			ecode = -1;
 			close(pipes[0]);
 			goto stop;
 		}
 
-		write_start = pipe_buf_unit(buf,
-		                            pipes,
-		                            write_start,
-		                            (buf->start + buf->gap_offs) + buf->gap_size,
-		                            stop);
-		if (write_start == NULL) {
+		if (write(pipes[0], gap_stop, stop - gap_stop) < 0) {
 			ecode = -1;
 			close(pipes[0]);
 			goto stop;
 		}
 
-		/* Move gap to end of editing section */
-		buf->gap_offs = write_start - buf->start;
-		buf->gap_size = stop - write_start;
-
+		buf->gap_offs = start_offs;
+		buf->gap_size = stop - start;
 	} else {
-		/* Section is continuous */
-
-		write_start = pipe_buf_unit(buf,
-		                            pipes,
-		                            write_start,
-		                            start,
-		                            stop);
-		if (write_start == NULL) {
+		if (write(pipes[0], start, stop - start) < 0) {
 			ecode = -1;
 			close(pipes[0]);
 			goto stop;
 		}
 
-		/* Move gap (outside the editing section) into the editing
-		 * section, expanding its size with the area not yet filled */
-		gbuf_move_cursor(buf, ptr_to_offs(buf, write_start));
-		buf->gap_size += stop - write_start;
+		gbuf_move_cursor(buf, start_offs);
+		buf->gap_size += len;
 	}
 
 	close(pipes[0]);
 
-	/* Reset to blocking io */
-	fcntl(pipes[1], F_SETFL, flags);
+	if (!buf->gap_size)
+		gbuf_resize(buf, buf->size + 512);
 
 	ssize_t write_size;
 	while (write_size = read(pipes[1], (buf->start + buf->gap_offs), buf->gap_size)) {
