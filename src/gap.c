@@ -387,7 +387,7 @@ opencmd(const char *cmd, const char *const envp[], int pipes[3])
 	for (nmemb = 0; envp[nmemb]; ++nmemb)
 		;
 
-	char **envp_copy = calloc(nmemb, sizeof(char *));
+	char **envp_copy = calloc(nmemb + 1, sizeof(char *));
 	for (int i = 0; envp[i]; ++i)
 		envp_copy[i] = strdup(envp[i]);
 
