@@ -810,6 +810,62 @@ cmd_dialog_on_enter_press(Buffer *buf, KeyMods mods)
 	gbuf_clear(gbuf);
 }
 
+static int
+total_string_width(const char *str, size_t len, int tab_width)
+{
+	int width = 0;
+	const char *stop = str + len;
+
+	while (str != stop) {
+		const char *nxt = u8_grapheme_next(str, stop);
+		width += grapheme_width(str, nxt - str, width + 1, tab_width);
+		str = nxt;
+	}
+
+	return width;
+}
+
+/*
+ * Gives paramters for "text-box-aligning" text: left alignment if the
+ * string fits in the box, right alignment otherwise.
+ *
+ * The number of columns that text needs to be shifted to the right to
+ * right-align the text properly is written to `col_offset', the number
+ * of bytes in the string not to draw to `byte_offset', and the number
+ * of visible columns to `cols_shown'.
+ */
+static void
+textbox_align_params(const char *str,
+                     size_t len,
+                     int *col_offset,
+                     int *byte_offset,
+                     int *cols_shown,
+                     int target_w,
+                     int tab_width)
+{
+	int total_w = total_string_width(str, len, tab_width);
+	int discrepancy = total_w - target_w;
+	if (discrepancy <= 0) {
+		*col_offset = 0;
+		*byte_offset = 0;
+		*cols_shown = total_w;
+		return;
+	}
+
+	const char *s = str;
+	int x = 0;
+	while (x < discrepancy) {
+		const char *nxt = u8_grapheme_next(s, str + len);
+		size_t bytes = nxt - s;
+		x += grapheme_width(s, bytes, x + 1, tab_width);
+		s = nxt;
+	}
+
+	*col_offset = discrepancy - x;
+	*byte_offset = s - str;
+	*cols_shown = target_w;
+}
+
 static void
 draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh)
 {
@@ -850,18 +906,21 @@ draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh)
 	gbuf_strcpy(gbuf, str, 0, buf_len);
 
 	/* TODO should obviously think in terms of grapheme length... */
-	int num_graphemes = buf_len;
-	int num_show = num_graphemes > buf->dialog.w ? buf->dialog.w : num_graphemes;
-	int show_offs = num_graphemes - num_show;
+	int col_offset, byte_offset, cols_shown;
+	textbox_align_params(str,
+	                     buf_len,
+	                     &col_offset,
+	                     &byte_offset,
+	                     &cols_shown,
+	                     buf->dialog.w,
+	                     buf->werk->cfg.editor.tab_width);
 
-	int x_offs = (buf->dialog.w < num_show) * (buf->dialog.w - num_graphemes);
 
-
-	drw_draw_text(d, x + x_offs, y, false, false, str + show_offs, num_show);
+	drw_draw_text(d, x + col_offset, y, false, false, str + byte_offset, buf_len - byte_offset);
 
 	free(str);
 
-	drw_place_caret(d, x + num_show, y, true);
+	drw_place_caret(d, x + cols_shown, y, true);
 }
 
 void
