@@ -246,8 +246,8 @@ int
 grapheme_width(const char *str, size_t n, int col, int tab_width)
 {
 	if (n == 1 && str[0] == '\t') {
-		int dest_col = (1 + (col - 1) / tab_width) * tab_width;
-		return (dest_col + 1) - col;
+		int dest_col = 1 + (1 + (col - 1) / tab_width) * tab_width;
+		return dest_col - col;
 	}
 
 	if (n == 0)
