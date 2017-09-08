@@ -44,6 +44,12 @@ static int buf_read(Buffer *buf, const char *filename);
 static void buf_detect_newline(Buffer *buf);
 
 /*
+ * Shifts all markers so that they are no longer in the seleciton.
+ * Only modifies `buf->lo_markers'.
+ */
+static void buf_clear_sel_of_markers(Buffer *buf);
+
+/*
  * Calculate viewport origin to make sure that the end of the selection
  * is visible.
  */
@@ -482,6 +488,8 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 void
 buf_pipe_selection(Buffer *buf, const char *str)
 {
+	buf_clear_sel_of_markers(buf);
+
 	BufferMarker *left, *right;
 	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
 
@@ -513,6 +521,32 @@ buf_high_selection(Buffer *buf)
 		return &buf->sel_start;
 
 	return &buf->sel_finish;
+}
+
+static void
+buf_clear_sel_of_markers(Buffer *buf)
+{
+	BufferMarker *left, *right;
+	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
+
+	struct rb_iter *it = rb_iter_create();
+	for (;;) {
+		BufferMarker *lo_last = rb_iter_last(it, buf->lo_markers);
+
+		/* shouldn't really happen (buf_start), buf whatever */
+		if (!lo_last)
+			break;
+
+		/* if (lo_last <= left) */
+		if (cmp_buffer_markers(lo_last, left) <= 0)
+			break;
+
+		rb_tree_remove(buf->lo_markers, lo_last);
+		*lo_last = *left; /* set to same location as left */
+		rb_tree_insert(buf->lo_markers, lo_last);
+	}
+
+	rb_iter_dealloc(it);
 }
 
 void
