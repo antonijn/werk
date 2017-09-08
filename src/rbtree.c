@@ -247,7 +247,7 @@ rb_tree_insert_node(struct rb_tree *self, struct rb_node *node)
 
 	if (!self->root) {
 		self->root = node;
-		return;
+		goto done;
 	}
 
 	struct rb_node head = { 0 };
@@ -301,6 +301,7 @@ rb_tree_insert_node(struct rb_tree *self, struct rb_node *node)
 	/* Update the root (it may be different) */
 	self->root = head.link[1];
 
+done:
 	/* Make the root black for simplified logic */
 	self->root->red = false;
 	++self->size;
