@@ -50,6 +50,14 @@ static void buf_detect_newline(Buffer *buf);
 static void buf_clear_sel_of_markers(Buffer *buf);
 
 /*
+ * The `col' field of any markers in hi_markers that are on the same
+ * line as the one to which text is added or removed are invalidated and
+ * have to be recalculated. For this they need not be removed from the
+ * tree, since the `col' field has no effect on ordering.
+ */
+static void buf_recalc_hi_marker_cols(Buffer *buf);
+
+/*
  * Calculate viewport origin to make sure that the end of the selection
  * is visible.
  */
@@ -156,9 +164,9 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	                 = buf->sel_finish.col = 1;
 
 	buf->lo_markers = rb_tree_create(cmp_buffer_markers_rbtree);
-	rb_tree_insert(buf->lo_markers, rb_node_create(&buf->buf_start));
+	rb_tree_insert(buf->lo_markers, &buf->buf_start);
 	buf->hi_markers = rb_tree_create(cmp_buffer_markers_rbtree);
-	rb_tree_insert(buf->hi_markers, rb_node_create(&buf->buf_end));
+	rb_tree_insert(buf->hi_markers, &buf->buf_end);
 
 	/* is reset later using buf_detect_newline() */
 	buf->eol = werk->cfg.text.default_newline;
@@ -349,7 +357,7 @@ grapheme_column(Buffer *buf, gbuf_offs ofs)
 gbuf_offs
 marker_offs(Buffer *buf, const BufferMarker *marker)
 {
-	return (marker->rtol * buf->gbuf.size) + marker->offset;
+	return (marker->rtol * gbuf_len(&buf->gbuf)) + marker->offset;
 }
 
 int
@@ -455,14 +463,21 @@ marker_sort_pair(BufferMarker *a, BufferMarker *b, BufferMarker **left, BufferMa
 	}
 }
 void
-buf_delete_range(Buffer *buf, BufferMarker *a, BufferMarker *b)
+buf_delete_selection(Buffer *buf)
 {
+	buf_clear_sel_of_markers(buf);
+
 	BufferMarker *left, *right;
-	marker_sort_pair(a, b, &left, &right);
+	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
 
 	gbuf_offs lofs = marker_offs(buf, left);
 	gbuf_offs rofs = marker_offs(buf, right);
 	gbuf_delete_text(&buf->gbuf, lofs, rofs - lofs);
+
+	buf->sel_finish = *left;
+	buf->sel_start = *left;
+
+	buf_recalc_hi_marker_cols(buf);
 }
 
 void
@@ -570,6 +585,10 @@ buf_insert_input_string(Buffer *buf, const char *input, size_t len)
 void
 buf_insert_text(Buffer *buf, const char *input, size_t len)
 {
+	/* NOTE 1: a buf_insert_text() never causes _any_ marker
+	 * traversals (a marker going from hi to lo or vice versa) */
+
+
 	if (!buf_is_selection_degenerate(buf))
 		return;
 
@@ -582,6 +601,25 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 	{
 		buf_move_cursor(buf, 1, false);
 	}
+
+	buf_recalc_hi_marker_cols(buf);
+}
+
+static void
+buf_recalc_hi_marker_cols(Buffer *buf)
+{
+	/* TODO: limit to sel_finish line (can be done when a `lines'
+	 *       field is added to the buffer struct */
+
+	struct rb_iter *it = rb_iter_create();
+	for (BufferMarker *m = rb_iter_first(it, buf->hi_markers);
+	     m;
+	     m = rb_iter_next(it))
+	{
+		m->col = grapheme_column(buf, marker_offs(buf, m));
+	}
+
+	rb_iter_dealloc(it);
 }
 
 static void

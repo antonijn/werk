@@ -105,22 +105,14 @@ sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t
 		push_insert_mode(buf);
 		break;
 
-	case 'c': {
-		BufferMarker *left, *right;
-		marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
-		buf_delete_range(buf, left, right);
-		buf->sel_finish = buf->sel_start;
+	case 'c':
+		buf_delete_selection(buf);
 		push_insert_mode(buf);
 		break;
-		  }
 
-	case 'd': {
-		BufferMarker *left, *right;
-		marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
-		buf_delete_range(buf, left, right);
-		buf->sel_finish = buf->sel_start;
+	case 'd':
+		buf_delete_selection(buf);
 		break;
-		  }
 
 	case 'L':
 	case 'l':
@@ -233,13 +225,13 @@ im_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods)
 static void
 im_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	gbuf_offs cur = buf->sel_finish.offset;
-	buf_move_cursor(buf, -1, false);
-	gbuf_backspace_grapheme(&buf->gbuf, cur);
+	marker_prev(buf, NULL, NULL, &buf->sel_finish);
+	buf_delete_selection(buf);
 }
 
 static void
 im_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	gbuf_delete_grapheme(&buf->gbuf, buf->sel_finish.offset);
+	marker_next(buf, NULL, NULL, &buf->sel_finish);
+	buf_delete_selection(buf);
 }

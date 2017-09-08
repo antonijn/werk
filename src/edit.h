@@ -173,7 +173,7 @@ BufferMarker *buf_high_selection(Buffer *buf);
 void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
 void buf_insert_text(Buffer *buf, const char *input, size_t len);
 
-void buf_delete_range(Buffer *buf, BufferMarker *left, BufferMarker *right);
+void buf_delete_selection(Buffer *buf);
 
 /*
  * Move cursor by `delta' graphemes. Positive `delta' means movement
