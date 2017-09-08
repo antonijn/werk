@@ -4,6 +4,7 @@
 #include "cfg.h"
 #include "cfgprs.h"
 #include "gap.h"
+#include "rbtree.h"
 #include "win.h"
 
 /* instance of the editor (possibly containing multiple buffers) */
@@ -15,9 +16,36 @@ typedef struct buffer Buffer;
 
 /* used to keep track of locations in the gap buffer */
 typedef struct {
-	gbuf_offs offset;
+	/*
+	 * THERE ARE TWO TYPES OF BUFFER MARKERS
+	 *
+	 * Markers can both be measured from the start of the buffer,
+	 * and from the end.
+	 *
+	 * If `dir == 1', then it is measured from the start of the
+	 * buffer, and `offset' and `line' are absolute quantities.
+	 *
+	 * If, however, `dir == -1', then it is measured from the end of
+	 * the buffer, and `offset' and `line' are quantities relative
+	 * to the end of the buffer. Note that, if `offset == 0' (and
+	 * `line == 0'), then it represents the space in the buffer
+	 * after the last character. This is indeed the end-of-buffer
+	 * marker.
+	 *
+	 * In comparisons, buffer markers with direction `-1' are
+	 * considered "greater" than any marker with direction `1'.
+	 *
+	 * `col' is always an absolute quanity.
+	 */
+
+	int dir;
+
+	long offset;
 	int line, col;
 } BufferMarker;
+
+int cmp_buffer_markers(const BufferMarker *a, const BufferMarker *b);
+int cmp_buffer_markers_rbtree(struct rb_tree *tree, struct rb_node *a, struct rb_node *b);
 
 struct mode {
 	void (*on_key_press)(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);

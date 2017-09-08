@@ -106,6 +106,35 @@ static void cmd_dialog_on_enter_press(Buffer *buf, KeyMods mods);
 static void draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh);
 
 
+int
+cmp_buffer_markers(const BufferMarker *a, const BufferMarker *b)
+{
+	int adir = a->dir;
+	int bdir = b->dir;
+
+	if (adir > bdir)
+		return -1;
+
+	if (adir < bdir)
+		return 1;
+
+	int dir = adir;
+
+	if (a->offset > b->offset)
+		return dir;
+
+	if (a->offset < b->offset)
+		return -dir;
+
+	return 0;
+}
+
+int
+cmp_buffer_markers_rbtree(struct rb_tree *tree, struct rb_node *a, struct rb_node *b)
+{
+	return cmp_buffer_markers(a->value, b->value);
+}
+
 static void
 buf_init(Buffer *buf, WerkInstance *werk)
 {
@@ -118,6 +147,8 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	buf->vp_orig_col = buf->vp_orig_line
 	                 = buf->sel_start.line
 	                 = buf->sel_start.col
+			 = buf->sel_start.dir
+			 = buf->sel_finish.dir
 	                 = buf->sel_finish.line
 	                 = buf->sel_finish.col = 1;
 
