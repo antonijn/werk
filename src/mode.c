@@ -225,13 +225,13 @@ im_on_enter_press(Buffer *buf, Mode *mode, KeyMods mods)
 static void
 im_on_backspace_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	marker_prev(buf, NULL, NULL, &buf->sel_finish);
+	buf_move_cursor(buf, -1, true);
 	buf_delete_selection(buf);
 }
 
 static void
 im_on_delete_press(Buffer *buf, Mode *mode, KeyMods mods)
 {
-	marker_next(buf, NULL, NULL, &buf->sel_finish);
+	buf_move_cursor(buf, 1, true);
 	buf_delete_selection(buf);
 }
