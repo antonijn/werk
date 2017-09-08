@@ -140,10 +140,19 @@ buf_init(Buffer *buf, WerkInstance *werk)
 
 	buf->werk = werk;
 	buf->vp_orig_col = buf->vp_orig_line
+	                 = buf->buf_start.col
+	                 = buf->buf_start.line
+	                 = buf->buf_end.col
+	                 = buf->buf_end.rtol
 	                 = buf->sel_start.line
 	                 = buf->sel_start.col
 	                 = buf->sel_finish.line
 	                 = buf->sel_finish.col = 1;
+
+	buf->lo_markers = rb_tree_create(cmp_buffer_markers_rbtree);
+	rb_tree_insert(buf->lo_markers, rb_node_create(&buf->buf_start));
+	buf->hi_markers = rb_tree_create(cmp_buffer_markers_rbtree);
+	rb_tree_insert(buf->hi_markers, rb_node_create(&buf->buf_end));
 
 	/* is reset later using buf_detect_newline() */
 	buf->eol = werk->cfg.text.default_newline;
@@ -162,11 +171,20 @@ cmd_dialog_init(Buffer *buf)
 }
 
 static void
+destroy_node(struct rb_tree *tree, struct rb_node *node)
+{
+	rb_node_dealloc(node);
+}
+
+static void
 buf_destroy(Buffer *buf)
 {
 	gbuf_destroy(&buf->gbuf);
 	gbuf_destroy(&buf->dialog.gbuf);
 	free((char *)buf->filename);
+
+	rb_tree_dealloc(buf->lo_markers, destroy_node);
+	rb_tree_dealloc(buf->hi_markers, destroy_node);
 
 	while (buf->mode)
 		pop_mode(buf);
@@ -196,6 +214,8 @@ buf_read(Buffer *buf, const char *filename)
 		free(backup);
 		return -1;
 	}
+
+	buf->buf_end.col = grapheme_column(buf, marker_offs(buf, &buf->buf_end));
 
 	buf_detect_newline(buf);
 	buf->filename = strdup(filename);
@@ -311,7 +331,8 @@ grapheme_column(Buffer *buf, gbuf_offs ofs)
 	while (scan != ofs) {
 		const char *graph;
 		size_t len;
-		gbuf_grapheme_next(&buf->gbuf, &graph, &len, &scan);
+		if (gbuf_grapheme_next(&buf->gbuf, &graph, &len, &scan))
+			break;
 
 		res += grapheme_width(graph, len, res, buf->werk->cfg.editor.tab_width);
 	}

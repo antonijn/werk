@@ -64,6 +64,20 @@ struct buffer {
 	/* Selection markers */
 	BufferMarker sel_start, sel_finish;
 
+	BufferMarker buf_start, buf_end;
+
+	/*
+	 * Markers that come before the "high marker" (greatest of
+	 * sel_start and sel_finish) are in lo_markers, the remaining
+	 * in hi_markers.
+	 *
+	 * sel_start and sel_finish themselves are never in either.
+	 *
+	 * The high markers are all right-to-left, the low markers all
+	 * left-to-right.
+	 */
+	struct rb_tree *lo_markers, *hi_markers;
+
 	/* Buffer-specific newline character */
 	const char *eol;
 	size_t eol_size;
