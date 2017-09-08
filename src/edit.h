@@ -17,28 +17,22 @@ typedef struct buffer Buffer;
 /* used to keep track of locations in the gap buffer */
 typedef struct {
 	/*
-	 * THERE ARE TWO TYPES OF BUFFER MARKERS
+	 * THERE ARE TWO TYPES OF BUFFER MARKERS: left-to-right and
+	 * right-to-left.
 	 *
-	 * Markers can both be measured from the start of the buffer,
-	 * and from the end.
+	 * The absolute offset of a marker within a buffer of size N is:
 	 *
-	 * If `dir == 1', then it is measured from the start of the
-	 * buffer, and `offset' and `line' are absolute quantities.
+	 *   rtol * N + offset
 	 *
-	 * If, however, `dir == -1', then it is measured from the end of
-	 * the buffer, and `offset' and `line' are quantities relative
-	 * to the end of the buffer. Note that, if `offset == 0' (and
-	 * `line == 0'), then it represents the space in the buffer
-	 * after the last character. This is indeed the end-of-buffer
-	 * marker.
+	 * The absolute line number in a file with L lines:
 	 *
-	 * In comparisons, buffer markers with direction `-1' are
-	 * considered "greater" than any marker with direction `1'.
+	 *   rtol * (L - 1) + line + 1
 	 *
-	 * `col' is always an absolute quanity.
+	 * Right-to-left markers are considered "greater than" (>)
+	 * left-to-right markers.
 	 */
 
-	int dir;
+	int rtol;
 
 	long offset;
 	int line, col;
@@ -101,6 +95,8 @@ int grapheme_width(const char *str, size_t n, int col, int tab_width);
  */
 int grapheme_column(Buffer *buf, gbuf_offs ofs);
 
+gbuf_offs marker_offs(Buffer *buf, const BufferMarker *marker);
+
 /*
  * Moves `marker' to next grapheme, stores the current grapheme in `str'
  * and its size in `size'.
@@ -126,15 +122,30 @@ void marker_start_of_line(Buffer *buf, BufferMarker *marker);
 void marker_end_of_line(Buffer *buf, BufferMarker *marker);
 
 /*
- * Swap `a' and `b' if `a' > `b'.
+ * if (cmp_buffer_markers(a, b) <= 0) {
+ *         *left = a;
+ *         *right = b;
+ * } else {
+ *         *left = b;
+ *         *right = a;
+ * }
  */
-void marker_sort_pair(BufferMarker *a, BufferMarker *b);
+void marker_sort_pair(BufferMarker *a,
+                      BufferMarker *b,
+                      BufferMarker **left,
+                      BufferMarker **right);
 
 /*
  * Pipe buffer selection through command `str'.
  * See also: gbuf_pipe()
  */
 void buf_pipe_selection(Buffer *buf, const char *str);
+
+/*
+ * Return a pointer to sel_start if sel_start > sel_finish, or a
+ * pointer to sel_finish otherwise.
+ */
+BufferMarker *buf_high_selection(Buffer *buf);
 
 /*
  * Insert string at end of selection. Moves end of selection forwards
@@ -148,7 +159,7 @@ void buf_pipe_selection(Buffer *buf, const char *str);
 void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
 void buf_insert_text(Buffer *buf, const char *input, size_t len);
 
-void buf_delete_range(Buffer *buf, BufferMarker left, BufferMarker right);
+void buf_delete_range(Buffer *buf, BufferMarker *left, BufferMarker *right);
 
 /*
  * Move cursor by `delta' graphemes. Positive `delta' means movement

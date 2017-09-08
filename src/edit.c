@@ -109,22 +109,17 @@ static void draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh);
 int
 cmp_buffer_markers(const BufferMarker *a, const BufferMarker *b)
 {
-	int adir = a->dir;
-	int bdir = b->dir;
-
-	if (adir > bdir)
+	if (a->rtol < b->rtol)
 		return -1;
 
-	if (adir < bdir)
+	if (a->rtol > b->rtol)
 		return 1;
 
-	int dir = adir;
+	if (a->offset < b->offset)
+		return -1;
 
 	if (a->offset > b->offset)
-		return dir;
-
-	if (a->offset < b->offset)
-		return -dir;
+		return 1;
 
 	return 0;
 }
@@ -147,8 +142,6 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	buf->vp_orig_col = buf->vp_orig_line
 	                 = buf->sel_start.line
 	                 = buf->sel_start.col
-			 = buf->sel_start.dir
-			 = buf->sel_finish.dir
 	                 = buf->sel_finish.line
 	                 = buf->sel_finish.col = 1;
 
@@ -326,18 +319,24 @@ grapheme_column(Buffer *buf, gbuf_offs ofs)
 	return res;
 }
 
+gbuf_offs
+marker_offs(Buffer *buf, const BufferMarker *marker)
+{
+	return (marker->rtol * buf->gbuf.size) + marker->offset;
+}
+
 int
 marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 {
 	const char *s;
 	size_t len;
 
-	gbuf_offs ofs = marker->offset;
+	gbuf_offs ofs = marker_offs(buf, marker);
 	gbuf_offs next_ofs = ofs;
 	if (gbuf_grapheme_next(&buf->gbuf, &s, &len, &next_ofs))
 		return -1;
 
-	marker->offset = next_ofs;
+	marker->offset += next_ofs - ofs;
 
 	if (grapheme_is_newline(s, len)) {
 		++marker->line;
@@ -360,12 +359,12 @@ marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 	const char *s;
 	size_t len;
 
-	gbuf_offs next_ofs = marker->offset;
+	gbuf_offs next_ofs = marker_offs(buf, marker);
 	gbuf_offs ofs = next_ofs;
 	if (gbuf_grapheme_prev(&buf->gbuf, &s, &len, &ofs))
 		return -1;
 
-	marker->offset = ofs;
+	marker->offset -= next_ofs - ofs;
 
 	if (grapheme_is_newline(s, len))
 		--marker->line;
@@ -406,32 +405,37 @@ marker_start_of_line(Buffer *buf, BufferMarker *res)
 void
 marker_end_of_line(Buffer *buf, BufferMarker *res)
 {
-	BufferMarker prev;
 	const char *str;
 	size_t len;
 
-	while (prev = *res, marker_next(buf, &str, &len, res) == 0) {
+	while (marker_next(buf, &str, &len, res) == 0) {
 		if (grapheme_is_newline(str, len)) {
-			*res = prev;
+			marker_prev(buf, &str, &len, res);
 			break;
 		}
 	}
 }
 
 void
-marker_sort_pair(BufferMarker *a, BufferMarker *b)
+marker_sort_pair(BufferMarker *a, BufferMarker *b, BufferMarker **left, BufferMarker **right)
 {
-	if (a->offset >= b->offset) {
-		BufferMarker temp = *a;
-		*a = *b;
-		*b = temp;
+	if (cmp_buffer_markers(a, b) <= 0) {
+		*left = a;
+		*right = b;
+	} else {
+		*left = b;
+		*right = a;
 	}
 }
 void
-buf_delete_range(Buffer *buf, BufferMarker a, BufferMarker b)
+buf_delete_range(Buffer *buf, BufferMarker *a, BufferMarker *b)
 {
-	marker_sort_pair(&a, &b);
-	gbuf_delete_text(&buf->gbuf, a.offset, b.offset - a.offset);
+	BufferMarker *left, *right;
+	marker_sort_pair(a, b, &left, &right);
+
+	gbuf_offs lofs = marker_offs(buf, left);
+	gbuf_offs rofs = marker_offs(buf, right);
+	gbuf_delete_text(&buf->gbuf, lofs, rofs - lofs);
 }
 
 void
@@ -457,8 +461,11 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 void
 buf_pipe_selection(Buffer *buf, const char *str)
 {
+	/* sel_start and sel_finish are always left-to-right,
+	 * so this is valid */
 	gbuf_offs start = buf->sel_start.offset;
 	gbuf_offs stop = buf->sel_finish.offset;
+
 	bool flipped = false; /* hacky */
 
 	if (start > stop) {
@@ -494,6 +501,15 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	}
 }
 
+BufferMarker *
+buf_high_selection(Buffer *buf)
+{
+	if (cmp_buffer_markers(&buf->sel_start, &buf->sel_finish) == 1)
+		return &buf->sel_start;
+
+	return &buf->sel_finish;
+}
+
 void
 buf_insert_input_string(Buffer *buf, const char *input, size_t len)
 {
@@ -518,6 +534,7 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 	if (!buf_is_selection_degenerate(buf))
 		return;
 
+	/* sel_finish is always left-to-right, so this is valid */
 	gbuf_insert_text(&buf->gbuf, buf->sel_finish.offset, input, len);
 
 	for (const char *stop = input + len;
@@ -769,7 +786,7 @@ buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 
 	/* draw lines */
 
-	BufferMarker line_start;
+	BufferMarker line_start = { 0 };
 	line_start.offset = buf->vp_first_line;
 	line_start.line = buf->vp_orig_line;
 	line_start.col = buf->vp_orig_col;

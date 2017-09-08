@@ -105,18 +105,22 @@ sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t
 		push_insert_mode(buf);
 		break;
 
-	case 'c':
-		marker_sort_pair(&buf->sel_start, &buf->sel_finish);
-		buf_delete_range(buf, buf->sel_start, buf->sel_finish);
+	case 'c': {
+		BufferMarker *left, *right;
+		marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
+		buf_delete_range(buf, left, right);
 		buf->sel_finish = buf->sel_start;
 		push_insert_mode(buf);
 		break;
+		  }
 
-	case 'd':
-		marker_sort_pair(&buf->sel_start, &buf->sel_finish);
-		buf_delete_range(buf, buf->sel_start, buf->sel_finish);
+	case 'd': {
+		BufferMarker *left, *right;
+		marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
+		buf_delete_range(buf, left, right);
 		buf->sel_finish = buf->sel_start;
 		break;
+		  }
 
 	case 'L':
 	case 'l':
