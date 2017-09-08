@@ -461,22 +461,11 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 void
 buf_pipe_selection(Buffer *buf, const char *str)
 {
-	/* sel_start and sel_finish are always left-to-right,
-	 * so this is valid */
-	gbuf_offs start = buf->sel_start.offset;
-	gbuf_offs stop = buf->sel_finish.offset;
+	BufferMarker *left, *right;
+	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
 
-	bool flipped = false; /* hacky */
-
-	if (start > stop) {
-		gbuf_offs temp = start;
-		start = stop;
-		stop = temp;
-
-		flipped = true;
-
-		buf->sel_start = buf->sel_finish;
-	}
+	gbuf_offs start = left->offset;
+	gbuf_offs stop = right->offset;
 
 	int old_size = gbuf_len(&buf->gbuf);
 
@@ -486,19 +475,14 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	int delta_size = new_size - old_size;
 	gbuf_offs new_finish_ofs = stop + delta_size;
 
-	/* the start marker doesn't move,
-	 * the finsh marker does */
+	/* the selection should now be devoid of other markers, so
+	 * the following is valid */
 
-	buf->sel_finish = buf->sel_start;
-	while (buf->sel_finish.offset != new_finish_ofs)
-		if (marker_next(buf, NULL, NULL, &buf->sel_finish) == -1)
+	*right = *left;
+
+	while (right->offset != new_finish_ofs)
+		if (marker_next(buf, NULL, NULL, right) == -1)
 			break;
-
-	if (flipped) {
-		BufferMarker temp = buf->sel_start;
-		buf->sel_start = buf->sel_finish;
-		buf->sel_finish = temp;
-	}
 }
 
 BufferMarker *
