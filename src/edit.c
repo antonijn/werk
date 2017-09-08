@@ -466,18 +466,35 @@ buf_pipe_selection(Buffer *buf, const char *str)
 void
 buf_insert_input_string(Buffer *buf, const char *input, size_t len)
 {
-	if (!strncmp(input, "\t", 1)) {
+	if (!buf_is_selection_degenerate(buf))
+		return;
+
+	if (len > 0 && input[0] == '\t') {
 		int indent = buf->werk->cfg.text.indentation;
 		for (int i = 0; i < indent; ++i)
-			buf_insert_input_string(buf, " ", 1);
+			buf_insert_text(buf, " ", 1);
 
 		if (indent)
-			return;
+			++input; /* skip tab character */
 	}
 
+	buf_insert_text(buf, input, len);
+}
+
+void
+buf_insert_text(Buffer *buf, const char *input, size_t len)
+{
+	if (!buf_is_selection_degenerate(buf))
+		return;
+
 	gbuf_insert_text(&buf->gbuf, buf->sel_finish.offset, input, len);
-	buf_move_cursor(buf, 1, false);
-	return;
+
+	for (const char *stop = input + len;
+	     input != stop;
+	     input = u8_grapheme_next(input, stop))
+	{
+		buf_move_cursor(buf, 1, false);
+	}
 }
 
 static void

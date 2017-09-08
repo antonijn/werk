@@ -109,9 +109,16 @@ void marker_sort_pair(BufferMarker *a, BufferMarker *b);
 void buf_pipe_selection(Buffer *buf, const char *str);
 
 /*
- * Insert string at end of selection.
+ * Insert string at end of selection. Moves end of selection forwards
+ * accordingly.
+ *
+ * Requires a degenerate selection.
+ *
+ * buf_insert_input_string() Replaces tabs with spaces if so configured.
+ * buf_insert_text()         Does not.
  */
 void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
+void buf_insert_text(Buffer *buf, const char *input, size_t len);
 
 void buf_delete_range(Buffer *buf, BufferMarker left, BufferMarker right);
 
