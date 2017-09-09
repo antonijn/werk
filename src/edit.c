@@ -1241,7 +1241,6 @@ draw_cmd_dialog(Buffer *buf, Drawer *d, int ww, int wh)
 	char *str = calloc(1, buf_len + 1);
 	gbuf_strcpy(gbuf, str, 0, buf_len);
 
-	/* TODO should obviously think in terms of grapheme length... */
 	int col_offset, byte_offset, cols_shown;
 	textbox_align_params(str,
 	                     buf_len,
