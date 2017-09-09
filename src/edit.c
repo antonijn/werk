@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,6 +43,12 @@ static int buf_read(Buffer *buf, const char *filename);
  * the configuration.
  */
 static void buf_detect_newline(Buffer *buf);
+
+/*
+ * Counts the number of newlines currently in the selection.
+ * NOTE: Quite expensive!
+ */
+static int buf_count_sel_newlines(Buffer *buf);
 
 /*
  * Determine if `marker' should be moved from `hi_markers' to
@@ -186,7 +193,8 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	                 = buf->sel_start.line
 	                 = buf->sel_start.col
 	                 = buf->sel_finish.line
-	                 = buf->sel_finish.col = 1;
+	                 = buf->sel_finish.col
+			 = buf->lines = 1;
 
 	buf->lo_markers = rb_tree_create(cmp_buffer_markers_rbtree);
 	rb_tree_insert(buf->lo_markers, &buf->buf_start);
@@ -254,6 +262,27 @@ buf_read(Buffer *buf, const char *filename)
 		return -1;
 	}
 
+	/* Count number of newlines in file.
+	 * Relies on the fact that the gap buffer text should be
+	 * uninterrupted (so we don't need to use the slightly more
+	 * expensive gbuf_grapheme_next() ). */
+	int lines = 1;
+	const char *it = buf->gbuf.start;
+	const char *stop = it + gbuf_len(&buf->gbuf);
+	while (it != stop) {
+		const char *nxt = u8_grapheme_next(it, stop);
+		size_t len = nxt - it;
+		if (grapheme_is_newline(it, len))
+			++lines;
+
+		it = nxt;
+	}
+
+	buf->lines = lines;
+
+	/* If there is no final newline, the buf_end marker needs a
+	 * column recalculation */
+	assert(rb_tree_size(buf->hi_markers) == 1); /* only buf_end */
 	buf->buf_end.col = grapheme_column(buf, marker_offs(buf, &buf->buf_end));
 
 	buf_detect_newline(buf);
@@ -295,6 +324,31 @@ buf_detect_newline(Buffer *buf)
 	const char *dflt = buf->werk->cfg.text.default_newline;
 	buf->eol = dflt;
 	buf->eol_size = strlen(dflt);
+}
+
+static int
+buf_count_sel_newlines(Buffer *buf)
+{
+	BufferMarker *left, *right;
+	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
+
+	BufferMarker it = *left;
+	gbuf_offs right_ofs = right->offset;
+
+	int res = 0;
+
+	while (it.offset < right_ofs) {
+		const char *s;
+		size_t l;
+
+		if (marker_next(buf, &s, &l, &it))
+			break;
+
+		if (grapheme_is_newline(s, l))
+			++res;
+	}
+
+	return res;
 }
 
 bool
@@ -401,8 +455,7 @@ traverse(Buffer *buf, BufferMarker *marker)
 		rb_tree_remove(buf->lo_markers, marker);
 		marker->rtol = 1;
 		marker->offset -= gbuf_len(&buf->gbuf);
-		/* TODO: after implementation of buf->lines */
-		marker->line = -1;
+		marker->line -= buf->lines;
 		rb_tree_insert(buf->hi_markers, marker);
 
 		return true;
@@ -417,8 +470,7 @@ traverse(Buffer *buf, BufferMarker *marker)
 		rb_tree_remove(buf->hi_markers, marker);
 		marker->rtol = 0;
 		marker->offset += gbuf_len(&buf->gbuf);
-		/* TODO: after implementation of buf->lines */
-		marker->line = -1;
+		marker->line += buf->lines;
 		rb_tree_insert(buf->lo_markers, marker);
 
 		return true;
@@ -539,6 +591,8 @@ buf_delete_selection(Buffer *buf)
 {
 	buf_clear_sel_of_markers(buf);
 
+	int newlines_removed = buf_count_sel_newlines(buf);
+
 	BufferMarker *left, *right;
 	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
 
@@ -548,6 +602,8 @@ buf_delete_selection(Buffer *buf)
 
 	buf->sel_finish = *left;
 	buf->sel_start = *left;
+
+	buf->lines -= newlines_removed;
 
 	buf_recalc_hi_marker_cols(buf);
 }
@@ -631,6 +687,8 @@ buf_pipe_selection(Buffer *buf, const char *str)
 {
 	buf_clear_sel_of_markers(buf);
 
+	int pre_pipe_newlines = buf_count_sel_newlines(buf);
+
 	BufferMarker *left, *right;
 	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
 
@@ -653,6 +711,10 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	while (right->offset != new_finish_ofs)
 		if (marker_next(buf, NULL, NULL, right) == -1)
 			break;
+
+	int post_pipe_newlines = buf_count_sel_newlines(buf);
+
+	buf->lines += post_pipe_newlines - pre_pipe_newlines;
 }
 
 BufferMarker *
@@ -725,8 +787,15 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 	     input != stop;
 	     input = u8_grapheme_next(input, stop))
 	{
-		buf_move_cursor(buf, 1, false);
+		/* expand selection so we can count added newlines */
+		buf_move_cursor(buf, 1, true);
 	}
+
+	int added_newlines = buf_count_sel_newlines(buf);
+	buf->lines += added_newlines;
+
+	/* make selection degenerate */
+	buf_move_cursor(buf, 0, false);
 
 	buf_recalc_hi_marker_cols(buf);
 }
@@ -734,12 +803,11 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 static void
 buf_recalc_hi_marker_cols(Buffer *buf)
 {
-	/* TODO: limit to sel_finish line (can be done when a `lines'
-	 *       field is added to the buffer struct */
+	int rtol_sel_finish_line = buf->sel_finish.line - buf->lines;
 
 	struct rb_iter *it = rb_iter_create();
 	for (BufferMarker *m = rb_iter_first(it, buf->hi_markers);
-	     m;
+	     m && m->line == rtol_sel_finish_line;
 	     m = rb_iter_next(it))
 	{
 		m->col = grapheme_column(buf, marker_offs(buf, m));
@@ -1311,7 +1379,10 @@ werk_add_buffer(WerkInstance *werk)
 {
 	Buffer *buf = malloc(sizeof(Buffer));
 	buf_init(buf, werk);
+	/* This doesn't invalidate buf->buf_end.col (since it's a
+	 * newline) */
 	gbuf_insert_text(&buf->gbuf, 0, buf->eol, buf->eol_size);
+	buf->lines = 2;
 
 	Buffer *cur_active = werk->active_buf;
 	if (cur_active) {

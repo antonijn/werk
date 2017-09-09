@@ -26,7 +26,7 @@ typedef struct {
 	 *
 	 * The absolute line number in a file with L lines:
 	 *
-	 *   rtol * (L - 1) + line + 1
+	 *   rtol * L + line
 	 *
 	 * Right-to-left markers are considered "greater than" (>)
 	 * left-to-right markers.
@@ -77,6 +77,9 @@ struct buffer {
 	 * left-to-right.
 	 */
 	struct rb_tree *lo_markers, *hi_markers;
+
+	/* number of lines in buffer */
+	int lines;
 
 	/* Buffer-specific newline character */
 	const char *eol;
