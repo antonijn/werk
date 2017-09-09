@@ -60,8 +60,8 @@ To run:
         {editor.show-invisibles = all/none/tabs,spaces,newlines}
     ✔ Color schemes {editor.colors.*}
     ✔ Customizable GTK font {gui.font}
+    ✔ Scroll bar
     ✘ Syntax highlighting
-    ✘ Scroll bar
     ✘ Buffer overview
     ✘ Language detection
     ✘ NCurses UI

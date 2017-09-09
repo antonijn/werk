@@ -27,6 +27,7 @@ config_load_defaults(Config *cfg)
 	cfg->colors.select.line_numbers_bg = (RGB){ 188, 227, 230 };
 	cfg->editor.line_numbers = true;
 	cfg->editor.show_tabs = cfg->editor.show_spaces = cfg->editor.show_newlines = false;
+	cfg->editor.scroll_bar = true;
 	cfg->editor.tab_width = 8;
 #ifdef _WIN32
 	cfg->text.default_newline = "\r\n";
@@ -67,6 +68,7 @@ config_setup_reader(Config *conf, ConfigReader *rdr)
 	                     "editor.colors.insert.line-numbers.background",
 	                     &conf->colors.insert.line_numbers_bg);
 	config_add_opt_b(rdr, "editor.line-numbers", &conf->editor.line_numbers);
+	config_add_opt_b(rdr, "editor.scroll-bar", &conf->editor.scroll_bar);
 	config_add_opt_i(rdr, "editor.tab-width", &conf->editor.tab_width);
 	static const char *invs_names[] = { "tabs", "spaces", "newlines", NULL };
 	bool *invs_vals[] = {

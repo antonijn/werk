@@ -21,6 +21,8 @@ typedef struct {
 		bool line_numbers;
 		/* whether to show class of invisibles */
 		bool show_newlines, show_spaces, show_tabs;
+		/* whether to show scroll bar */
+		bool scroll_bar;
 		/* number of spaces displayed per tab */
 		int tab_width;
 	} editor;

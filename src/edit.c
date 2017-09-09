@@ -109,6 +109,14 @@ static bool buf_draw_line(Buffer *buf,
  */
 static void buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines);
 
+static void buf_draw_scroll_bar(Buffer *buf,
+                                Drawer *d,
+                                int fst_line,
+                                int last_line,
+                                int xoffs,
+                                int yoffs,
+                                int height);
+
 /*
  * Convert line and column number to position on screen.
  */
@@ -1063,6 +1071,7 @@ buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 	line_start.col = buf->vp_orig_col;
 
 	drw_set_color(d, buf->mode->colors.fg);
+
 	for (int i = 0; i < vh; ++i) {
 		if (!buf_draw_line(buf, d, line_start, vw, vh, logic_x, line_num_width, i))
 			break;
@@ -1073,9 +1082,44 @@ buf_draw(Buffer *buf, Drawer *d, int wlines, int hlines)
 			break;
 	}
 
+	buf_draw_scroll_bar(buf, d, line_num, line_num + vh, wlines - 1, 0, vh);
+
 	int cur_x = line_num_width + buf->sel_finish.col - buf->vp_orig_col;
 	int cur_y = buf->sel_finish.line - line_num;
 	drw_place_caret(d, cur_x, cur_y, true);
+}
+
+static void
+buf_draw_scroll_bar(Buffer *buf,
+                    Drawer *d,
+                    int fst_line,
+                    int last_line,
+                    int xoffs,
+                    int yoffs,
+                    int height)
+{
+	if (!buf->werk->cfg.editor.scroll_bar)
+		return;
+
+	if (last_line > buf->lines)
+		last_line = buf->lines;
+
+	if (last_line < fst_line)
+		last_line = fst_line;
+
+	int lines_visible = (last_line - fst_line) + 1;
+	int lines_before = fst_line - 1;
+	int lines_after = buf->lines - last_line;
+
+	int h_before = lines_before * height / buf->lines;
+	int h_after = lines_after * height / buf->lines;
+	int h_between = height - (h_before + h_after);
+
+	drw_set_color(d, (RGB){ 0, 0, 0 });
+	drw_fill_rect(d, xoffs, yoffs, 1, h_before);
+	drw_fill_rect(d, xoffs, yoffs + (height - h_after), 1, h_after);
+	drw_set_color(d, (RGB){ 255, 255, 255 });
+	drw_fill_rect(d, xoffs, yoffs + h_before, 1, h_between);
 }
 
 static void
