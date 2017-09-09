@@ -483,6 +483,8 @@ buf_delete_selection(Buffer *buf)
 void
 buf_move_cursor(Buffer *buf, int delta, bool extend)
 {
+	long prev_hi_offs = buf_high_selection(buf)->offset;
+
 	if (delta > 0) {
 
 		for (int i = 0; i < delta; ++i)
@@ -498,6 +500,58 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 
 	if (!extend)
 		buf->sel_start = buf->sel_finish;
+
+	/* THIS IS WHERE MARKER TRAVERSALS HAPPEN!
+	 * that is: markers going from lo to hi or hi to lo */
+
+	BufferMarker *hi = buf_high_selection(buf);
+	long new_hi_offs = hi->offset;
+
+	if (new_hi_offs > prev_hi_offs) {
+
+		struct rb_iter *it = rb_iter_create();
+		for (;;)
+		{
+			BufferMarker *hi_least = rb_iter_first(it, buf->hi_markers);
+			if (!hi_least)
+				break;
+
+			if (cmp_buffer_markers(hi_least, hi) >= 0)
+				break;
+
+			rb_tree_remove(buf->hi_markers, hi_least);
+			hi_least->rtol = 0;
+			hi_least->offset = marker_offs(buf, hi_least);
+			/* TODO: upon implementation of buf->lines */
+			hi_least->line = -1;
+			rb_tree_insert(buf->lo_markers, hi_least);
+		}
+
+		rb_iter_dealloc(it);
+
+	} else if (new_hi_offs < prev_hi_offs) {
+
+		struct rb_iter *it = rb_iter_create();
+		for (;;)
+		{
+			BufferMarker *lo_last = rb_iter_first(it, buf->lo_markers);
+			if (!lo_last)
+				break;
+
+			if (cmp_buffer_markers(lo_last, hi) < 0)
+				break;
+
+			rb_tree_remove(buf->lo_markers, lo_last);
+			lo_last->rtol = 1;
+			lo_last->offset = lo_last->offset - gbuf_len(&buf->gbuf);
+			/* TODO: upon implementation of buf->lines */
+			lo_last->line = -1;
+			rb_tree_insert(buf->hi_markers, lo_last);
+		}
+
+		rb_iter_dealloc(it);
+
+	}
 }
 
 void
