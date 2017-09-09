@@ -9,7 +9,7 @@
 
 	Because all other text editors suck (although
 	some have at least a few good ideas), I decided
-	to write my own. Its working name is 'werk'. It
+	to write my own. Its working name is ‘werk’. It
 	combines ideas from vim, acme and sam.
 
 	If you have any ideas or suggestions, please
@@ -26,22 +26,22 @@
 		1.1 STRUCTURAL NAVIGATION
 
 It's supposed to be a hybrid structure/text-editor, with
-insertion/deletion like a text editor (think: vim), but navigation like
-a structure editor (think: acme but with key commands for structure
-navigation).
+insertion/deletion like a text editor (think: vim), but navigation
+like a more structural editor (think: acme but with key commands for
+structure navigation, instead of using the mouse for everything).
 
 Take for instance the following line:
 
 	foo = bar(qux(), quux());
 	^
-You realise that 'quux()' needs an argument, namely 'NULL'. Your cursor
-is currently at '^'.
+You realise that ‘quux()’ needs an argument, namely ‘NULL’. Your cursor
+is currently at ‘^’.
 
-You press a key to go into "parameter selection mode" (say 'p'):
+You press a key to go into “parameter selection mode” (say ‘p’):
 
 	foo = bar(qux(), quux());
 	          ^~~~~
-You traverse to the next parameter (say '.'):
+You traverse to the next parameter (say ‘.’):
 
 	foo = bar(qux(), quux());
 	                 ^~~~~~
@@ -49,7 +49,7 @@ You press the parameter selection key again:
 
 	foo = bar(qux(), quux());
 	                      ^
-You enter insert mode and type 'NULL' (say 'iNULL'):
+You enter insert mode and type ‘NULL’ (say ‘iNULL’):
 
 	foo = bar(qux(), quux(NULL));
 	                          |
@@ -64,24 +64,24 @@ Instead of providing a myriad of advanced commands like vim (every key has
 on average more than two functions) or emacs (https://xkcd.com/378/), most
 of werk's commands should be based on navigation, not on actual editing.
 Editing should be done by external programs, through which you can pipe
-selections (akin to vim's «:'<,'>!program-name'» ex-command, but about
+selections (akin to vim's “:'<,'>!program-name'” ex-command, but about
 five orders of magnitude less clunky).
 
 The editor would come with a variety of programs with short and sweet
 names (they won't be added to your PATH by default, don't worry), which
 function like traditional vim/emacs commands/functions would. Say you've
-been doing too much C#/Java programming and accidentally typed 'null'
-instead of 'NULL'.  In vim you'd enter visual mode, select the text and
-press '~'. In werk, you select the text, press something to indicate you
+been doing too much C#/Java programming and accidentally typed ‘null’
+instead of ‘NULL’.  In vim you'd enter visual mode, select the text and
+press ‘~’. In werk, you select the text, press something to indicate you
 want to type a command (say <C-x>), a small non-intrusive pop-up text
 bar appears right below the selection to minimise eye movement *cough* vi
-ex-mode *cough*, in which you can write 'up', press enter, and that's it.
+ex-mode *cough*, in which you can write ‘up’, press enter, and that's it.
 
-There's another program 'lic' which simply spits out license text,
+There's another program ‘lic’ which simply spits out license text,
 commented in a language of your choice, which you can run at the top
 of your document.  There would be another program 'u', which outputs
-a Unicode character based on its arguments: 'u ae' -> 'æ', etc. For
-find/replace there's 'sed'. You could use 'fmt' to format plain text
+a Unicode character based on its arguments: ‘u ae’ -> ‘æ’, etc. For
+find/replace there's ‘sed’. You could use ‘fmt’ to format plain text
 documents.
 
 This would greatly simplify the core editor, thereby adhering to the Unix
@@ -119,9 +119,9 @@ The colour scheme would of course be customisable, but by default its
 insert mode colours would be a light solarized theme and its normal
 mode colours would be icy blue. This allows the user to know quickly
 what mode their in, even when they've alt-tabbed. Technically speaking
-vim also allows you to see your mode by putting a tiny '-- INSERT --'
+vim also allows you to see your mode by putting a tiny ‘-- INSERT --’
 label to the very bottom of your screen, where you never ever look -
-save for when you're in ex-mode when '-- INSERT --' is not displayed...
+save for when you're in ex-mode when ‘-- INSERT --’ is not displayed...
 
 I've considered more subtle changes like changing the caret shape, but
 I think block cursors are unintuitive (a cursor is intuitively between
@@ -196,8 +196,8 @@ go about implementing such a plugin system [longterm].
 
 		3.1 LANGUAGE & TOOLKIT
 
-te will be written in C. The helper programs will be written in Python/Lua
-and Bash/Sh. The POSIX APIs will be used for piping etc.
+werk will be written in C. The helper programs will be written in
+Python/Lua and Bash/Sh. The POSIX APIs will be used for piping etc.
 
 GTK+-3.0 is used for basic cross-platform windows, Cairo for widget
 drawing and Pango for text rendering. There is of course also the
@@ -216,9 +216,6 @@ Text buffers are done using the gap buffer idea as is done in emacs
 (https://www.wikipedia.org/wiki/Gap_buffer). This means okay memory
 consumption and hopefully unnoticable logical cursor movement (the screen
 cursor and logical cursor may not always coincide).
-
-Piping can be done in place, piping text to a program while simultaneously
-trying to catch up with said programs output.
 
 
 		3.4 UNDO/REDO
