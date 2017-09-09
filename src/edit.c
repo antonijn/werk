@@ -516,7 +516,7 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 			if (!hi_least)
 				break;
 
-			if (cmp_buffer_markers(hi_least, hi) >= 0)
+			if (marker_offs(buf, hi_least) >= new_hi_offs)
 				break;
 
 			rb_tree_remove(buf->hi_markers, hi_least);
@@ -538,7 +538,7 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 			if (!lo_last)
 				break;
 
-			if (cmp_buffer_markers(lo_last, hi) < 0)
+			if (lo_last->offset <= new_hi_offs)
 				break;
 
 			rb_tree_remove(buf->lo_markers, lo_last);
