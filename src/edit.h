@@ -150,6 +150,12 @@ void marker_sort_pair(BufferMarker *a,
                       BufferMarker **right);
 
 /*
+ * Copies given start and finish markers to set new selection.
+ * Pass either argument `NULL' to indicate no change.
+ */
+void buf_set_sel(Buffer *buf, const BufferMarker *start, const BufferMarker *finish);
+
+/*
  * Pipe buffer selection through command `str'.
  * See also: gbuf_pipe()
  */

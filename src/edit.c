@@ -44,6 +44,14 @@ static int buf_read(Buffer *buf, const char *filename);
 static void buf_detect_newline(Buffer *buf);
 
 /*
+ * Determine if `marker' should be moved from `hi_markers' to
+ * `lo_markers' or vice versa, and do so if needed.
+ *
+ * Returns whether a traversal actually occured.
+ */
+static bool traverse(Buffer *buf, BufferMarker *marker);
+
+/*
  * Shifts all markers so that they are no longer in the seleciton.
  * Only modifies `buf->lo_markers'.
  */
@@ -141,7 +149,24 @@ cmp_buffer_markers(const BufferMarker *a, const BufferMarker *b)
 int
 cmp_buffer_markers_rbtree(struct rb_tree *tree, struct rb_node *a, struct rb_node *b)
 {
-	return cmp_buffer_markers(a->value, b->value);
+	int cmp = cmp_buffer_markers(a->value, b->value);
+
+	/* because rb_tree_find() should still retrieve the correct
+	 * marker, not just a marker at the same location as the sought
+	 * marker */
+	if (cmp == 0) {
+		uintptr_t ua = (uintptr_t)a->value;
+		uintptr_t ub = (uintptr_t)b->value;
+		if (ua < ub)
+			return -1;
+
+		if (ua > ub)
+			return 1;
+
+		return 0;
+	}
+
+	return cmp;
 }
 
 static void
@@ -360,18 +385,60 @@ marker_offs(Buffer *buf, const BufferMarker *marker)
 	return (marker->rtol * gbuf_len(&buf->gbuf)) + marker->offset;
 }
 
+static bool
+traverse(Buffer *buf, BufferMarker *marker)
+{
+	gbuf_offs hi_ofs = buf_high_selection(buf)->offset;
+
+	if (marker->rtol == 0
+	 && marker->offset > hi_ofs
+	 && rb_tree_find(buf->lo_markers, marker) == marker)
+	{
+		/* A traversal is needed.
+		 * Note that `marker' is guaranteed to be left-to-right,
+		 * because it's in lo_markers */
+
+		rb_tree_remove(buf->lo_markers, marker);
+		marker->rtol = 1;
+		marker->offset -= gbuf_len(&buf->gbuf);
+		/* TODO: after implementation of buf->lines */
+		marker->line = -1;
+		rb_tree_insert(buf->hi_markers, marker);
+
+		return true;
+	}
+
+	if (marker->rtol == 1
+	 && marker->offset < hi_ofs
+	 && rb_tree_find(buf->hi_markers, marker) == marker)
+	{
+		/* `marker' is right-to-left */
+
+		rb_tree_remove(buf->hi_markers, marker);
+		marker->rtol = 0;
+		marker->offset += gbuf_len(&buf->gbuf);
+		/* TODO: after implementation of buf->lines */
+		marker->line = -1;
+		rb_tree_insert(buf->lo_markers, marker);
+
+		return true;
+	}
+
+	return false;
+}
+
 int
 marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 {
 	const char *s;
 	size_t len;
 
-	gbuf_offs ofs = marker_offs(buf, marker);
-	gbuf_offs next_ofs = ofs;
-	if (gbuf_grapheme_next(&buf->gbuf, &s, &len, &next_ofs))
+	gbuf_offs initial_ofs = marker_offs(buf, marker);
+	gbuf_offs new_ofs = initial_ofs;
+	if (gbuf_grapheme_next(&buf->gbuf, &s, &len, &new_ofs))
 		return -1;
 
-	marker->offset += next_ofs - ofs;
+	marker->offset += new_ofs - initial_ofs;
 
 	if (grapheme_is_newline(s, len)) {
 		++marker->line;
@@ -385,6 +452,8 @@ marker_next(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 	if (size)
 		*size = len;
 
+	traverse(buf, marker);
+
 	return 0;
 }
 
@@ -394,22 +463,24 @@ marker_prev(Buffer *buf, const char **str, size_t *size, BufferMarker *marker)
 	const char *s;
 	size_t len;
 
-	gbuf_offs next_ofs = marker_offs(buf, marker);
-	gbuf_offs ofs = next_ofs;
-	if (gbuf_grapheme_prev(&buf->gbuf, &s, &len, &ofs))
+	gbuf_offs initial_ofs = marker_offs(buf, marker);
+	gbuf_offs new_ofs = initial_ofs;
+	if (gbuf_grapheme_prev(&buf->gbuf, &s, &len, &new_ofs))
 		return -1;
 
-	marker->offset -= next_ofs - ofs;
+	marker->offset -= initial_ofs - new_ofs;
 
 	if (grapheme_is_newline(s, len))
 		--marker->line;
 
-	marker->col = grapheme_column(buf, ofs);
+	marker->col = grapheme_column(buf, new_ofs);
 
 	if (str)
 		*str = s;
 	if (size)
 		*size = len;
+
+	traverse(buf, marker);
 
 	return 0;
 }
@@ -462,6 +533,7 @@ marker_sort_pair(BufferMarker *a, BufferMarker *b, BufferMarker **left, BufferMa
 		*right = a;
 	}
 }
+
 void
 buf_delete_selection(Buffer *buf)
 {
@@ -483,23 +555,38 @@ buf_delete_selection(Buffer *buf)
 void
 buf_move_cursor(Buffer *buf, int delta, bool extend)
 {
-	long prev_hi_offs = buf_high_selection(buf)->offset;
+	BufferMarker start = buf->sel_start;
+	BufferMarker finish = buf->sel_finish;
 
 	if (delta > 0) {
 
 		for (int i = 0; i < delta; ++i)
-			if (marker_next(buf, NULL, NULL, &buf->sel_finish) == -1)
+			if (marker_next(buf, NULL, NULL, &finish) == -1)
 				break;
 
 	} else if (delta < 0) {
 
 		for (int i = 0; i < -delta; ++i)
-			if (marker_prev(buf, NULL, NULL, &buf->sel_finish) == -1)
+			if (marker_prev(buf, NULL, NULL, &finish) == -1)
 				break;
 	}
 
 	if (!extend)
-		buf->sel_start = buf->sel_finish;
+		start = finish;
+
+	buf_set_sel(buf, &start, &finish);
+}
+
+void
+buf_set_sel(Buffer *buf, const BufferMarker *start, const BufferMarker *finish)
+{
+	long prev_hi_offs = buf_high_selection(buf)->offset;
+
+	if (start)
+		buf->sel_start = *start;
+
+	if (finish)
+		buf->sel_finish = *finish;
 
 	/* THIS IS WHERE MARKER TRAVERSALS HAPPEN!
 	 * that is: markers going from lo to hi or hi to lo */
@@ -516,15 +603,8 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 			if (!hi_least)
 				break;
 
-			if (marker_offs(buf, hi_least) >= new_hi_offs)
+			if (!traverse(buf, hi_least))
 				break;
-
-			rb_tree_remove(buf->hi_markers, hi_least);
-			hi_least->rtol = 0;
-			hi_least->offset = marker_offs(buf, hi_least);
-			/* TODO: upon implementation of buf->lines */
-			hi_least->line = -1;
-			rb_tree_insert(buf->lo_markers, hi_least);
 		}
 
 		rb_iter_dealloc(it);
@@ -538,19 +618,11 @@ buf_move_cursor(Buffer *buf, int delta, bool extend)
 			if (!lo_last)
 				break;
 
-			if (lo_last->offset <= new_hi_offs)
+			if (!traverse(buf, lo_last))
 				break;
-
-			rb_tree_remove(buf->lo_markers, lo_last);
-			lo_last->rtol = 1;
-			lo_last->offset = lo_last->offset - gbuf_len(&buf->gbuf);
-			/* TODO: upon implementation of buf->lines */
-			lo_last->line = -1;
-			rb_tree_insert(buf->hi_markers, lo_last);
 		}
 
 		rb_iter_dealloc(it);
-
 	}
 }
 

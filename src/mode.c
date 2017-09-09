@@ -52,11 +52,11 @@ select_next_line(Buffer *buf, bool extend)
 	BufferMarker line_start = next_line;
 
 	marker_next_line(buf, &next_line);
-	buf->sel_finish = next_line;
+	buf_set_sel(buf, NULL, &next_line);
 
 	if (!extend || line_start.col != 1) {
 		marker_start_of_line(buf, &line_start);
-		buf->sel_start = line_start;
+		buf_set_sel(buf, &line_start, NULL);
 	}
 }
 
@@ -68,11 +68,11 @@ select_prev_line(Buffer *buf, bool extend)
 	marker_start_of_line(buf, &line_start);
 	marker_prev(buf, NULL, NULL, &line_start);
 	marker_start_of_line(buf, &line_start);
-	buf->sel_finish = line_start;
+	buf_set_sel(buf, NULL, &line_start);
 
 	BufferMarker next_line = line_start;
 	marker_next_line(buf, &next_line);
-	buf->sel_start = next_line;
+	buf_set_sel(buf, &next_line, NULL);
 }
 
 static void
