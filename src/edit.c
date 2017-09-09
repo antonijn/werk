@@ -836,7 +836,7 @@ buf_calc_vp_origin(Buffer *buf, int wlines, int hlines)
 		buf->vp_orig_col += (dorig_col - vw);
 
 	if (dorig_line < 0) {
-		BufferMarker new_orig;
+		BufferMarker new_orig = { 0 };
 		new_orig.offset = buf->vp_first_line;
 
 		for (int i = 0; i < -dorig_line; ++i) {
@@ -847,7 +847,7 @@ buf_calc_vp_origin(Buffer *buf, int wlines, int hlines)
 		buf->vp_orig_line += dorig_line;
 		buf->vp_first_line = new_orig.offset;
 	} else if (dorig_line >= vh) {
-		BufferMarker new_orig;
+		BufferMarker new_orig = { 0 };
 		new_orig.offset = buf->vp_first_line;
 
 		int line_delta = (dorig_line - vh) + 1;
