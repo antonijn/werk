@@ -96,12 +96,12 @@ sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t
 
 	switch (input[0]) {
 	case 'i':
-		buf->sel_finish = buf->sel_start;
+		buf_set_sel(buf, NULL, &buf->sel_start);
 		push_insert_mode(buf);
 		break;
 
 	case 'a':
-		buf->sel_start = buf->sel_finish;
+		buf_set_sel(buf, &buf->sel_finish, NULL);
 		push_insert_mode(buf);
 		break;
 
