@@ -1,7 +1,7 @@
 #ifndef MODE_H
 #define MODE_H
 
-#include "edit.h"
+#include "../edit.h"
 
 /*
  * Pop last mode from mode stack.

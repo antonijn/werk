@@ -1,4 +1,4 @@
-#include "edit.h"
+#include "../edit.h"
 #include "mode.h"
 
 #include <stdlib.h>

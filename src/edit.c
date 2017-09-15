@@ -9,7 +9,7 @@
 #include <uniwidth.h>
 #include "cfg.h"
 #include "edit.h"
-#include "mode.h"
+#include "mode/mode.h"
 #include "gap.h"
 
 #define CMD_DIALOG_WIDTH 30
