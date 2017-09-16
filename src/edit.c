@@ -256,10 +256,8 @@ static int
 buf_read(Buffer *buf, const char *filename)
 {
 	FILE *in = fopen(filename, "rb");
-	if (!in) {
-		fprintf(stderr, "error opening file `%s'\n", filename);
-		return -1;
-	}
+	if (!in)
+		goto no_such_file;
 
 	size_t ln = gbuf_len(&buf->gbuf);
 	char *backup = malloc(ln);
@@ -276,6 +274,8 @@ buf_read(Buffer *buf, const char *filename)
 		free(backup);
 		return -1;
 	}
+
+	free(backup);
 
 	/* Count number of newlines in file.
 	 * Relies on the fact that the gap buffer text should be
@@ -300,11 +300,12 @@ buf_read(Buffer *buf, const char *filename)
 	assert(rb_tree_size(buf->hi_markers) == 1); /* only buf_end */
 	buf->buf_end.col = grapheme_column(buf, marker_offs(buf, &buf->buf_end));
 
-	buf->filename = strdup(filename);
 	buf_detect_newline(buf);
+
+no_such_file:
+	buf->filename = strdup(filename);
 	buf_detect_lang(buf);
 
-	free(backup);
 	return 0;
 }
 
