@@ -4,6 +4,7 @@
 #include "cfg.h"
 #include "cfgprs.h"
 #include "gap.h"
+#include "lang.h"
 #include "rbtree.h"
 #include "win.h"
 
@@ -84,6 +85,8 @@ struct buffer {
 	/* Buffer-specific newline character */
 	const char *eol;
 	size_t eol_size;
+
+	Lang lang;
 
 	const char *filename;
 

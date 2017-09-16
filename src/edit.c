@@ -45,6 +45,12 @@ static int buf_read(Buffer *buf, const char *filename);
 static void buf_detect_newline(Buffer *buf);
 
 /*
+ * Set `buf->lang' to appropriate value
+ * See also: lang_detect()
+ */
+static void buf_detect_lang(Buffer *buf);
+
+/*
  * Counts the number of newlines currently in the selection.
  * NOTE: Quite expensive!
  */
@@ -293,8 +299,9 @@ buf_read(Buffer *buf, const char *filename)
 	assert(rb_tree_size(buf->hi_markers) == 1); /* only buf_end */
 	buf->buf_end.col = grapheme_column(buf, marker_offs(buf, &buf->buf_end));
 
-	buf_detect_newline(buf);
 	buf->filename = strdup(filename);
+	buf_detect_newline(buf);
+	buf_detect_lang(buf);
 
 	free(backup);
 	return 0;
@@ -332,6 +339,26 @@ buf_detect_newline(Buffer *buf)
 	const char *dflt = buf->werk->cfg.text.default_newline;
 	buf->eol = dflt;
 	buf->eol_size = strlen(dflt);
+}
+
+static void
+buf_detect_lang(Buffer *buf)
+{
+	BufferMarker mk = { .line = 1, .col = 1 };
+	marker_end_of_line(buf, &mk);
+
+	size_t l1_len = mk.offset;
+	char *l1 = malloc(l1_len + 1);
+	if (!l1) {
+		fprintf(stderr, "failed to detect language: first line too long\n");
+		return;
+	}
+	l1[l1_len] = '\0';
+	gbuf_strcpy(&buf->gbuf, l1, 0, l1_len);
+
+	lang_detect(buf->filename, l1, &buf->lang);
+
+	free(l1);
 }
 
 static int
