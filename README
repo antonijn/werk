@@ -61,9 +61,9 @@ To run:
     ✔ Color schemes {editor.colors.*}
     ✔ Customizable GTK font {gui.font}
     ✔ Scroll bar
+    ✔ Language detection
     ✘ Syntax highlighting
     ✘ Buffer overview
-    ✘ Language detection
     ✘ NCurses UI
 
   ~ Selection piping (src/edit.c, src/gap.c)
