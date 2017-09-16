@@ -1,12 +1,12 @@
 #ifndef EDIT_H
 #define EDIT_H
 
-#include "cfg.h"
-#include "cfgprs.h"
+#include <werk/conf/app.h>
+#include <werk/conf/file.h>
 #include "gap.h"
-#include "lang.h"
+#include <werk/lang.h>
 #include "rbtree.h"
-#include "win.h"
+#include <werk/ui/win.h>
 
 /* instance of the editor (possibly containing multiple buffers) */
 typedef struct werk_instance WerkInstance;

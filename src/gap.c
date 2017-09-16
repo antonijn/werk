@@ -1,4 +1,4 @@
-#include "gap.h"
+#include <werk/gap.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

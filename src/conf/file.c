@@ -1,5 +1,5 @@
-#include "cfgprs.h"
-#include "sparsef.h"
+#include <werk/conf/file.h>
+#include <werk/sparsef.h>
 
 #include <errno.h>
 #include <stdarg.h>

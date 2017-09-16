@@ -12,9 +12,9 @@
 #include <unigbrk.h>
 #include <unistr.h>
 #include <uniwidth.h>
-#include "gtk.h"
-#include "win.h"
-#include "edit.h"
+#include <werk/ui/gtk.h>
+#include <werk/ui/win.h>
+#include <werk/edit.h>
 
 static PangoFontDescription *font;
 

@@ -1,7 +1,7 @@
-#ifndef WERK_GTK_H
-#define WERK_GTK_H
+#ifndef UI_GTK_H
+#define UI_GTK_H
 
-#include "cfgprs.h"
+#include <werk/conf/file.h>
 
 int werk_gtk_main(const char **filenames, int num_filenames, ConfigReader *conf);
 

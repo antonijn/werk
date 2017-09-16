@@ -1,4 +1,4 @@
-#include "lang.h"
+#include <werk/lang.h>
 #include <assert.h>
 #include <libgen.h>
 #include <stdbool.h>

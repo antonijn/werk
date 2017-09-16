@@ -1,4 +1,4 @@
-#include "sparsef.h"
+#include <werk/sparsef.h>
 
 #include <errno.h>
 #include <stdarg.h>

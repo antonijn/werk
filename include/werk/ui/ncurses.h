@@ -1,7 +1,7 @@
-#ifndef WERK_NCURSES_H
-#define WERK_NCURSES_H
+#ifndef UI_NCURSES_H
+#define UI_NCURSES_H
 
-#include "cfgprs.h"
+#include <werk/conf/file.h>
 
 int werk_ncurses_main(const char **filenames, int num_filenames, ConfigReader *conf);
 

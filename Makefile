@@ -1,16 +1,19 @@
 TARGET = werk
 
-OBJECTS = src/main.o src/edit.o src/gap.o src/ncurses.o src/cfgprs.o \
-          src/cfg.o src/sparsef.o src/mode/mode.o src/rbtree.o src/lang.o
+OBJECTS = src/main.o src/edit.o src/gap.o src/lang.o \
+          src/rbtree.o src/sparsef.o \
+          src/conf/app.o src/conf/file.o \
+          src/mode/mode.o \
+          src/ui/ncurses.o
 LIBS = ncurses
-CFLAGS = -DHAS_NCURSES -Wreturn-type -Wunused-function
+CFLAGS = -DHAS_NCURSES -Wreturn-type -Wunused-function -Iinclude
 
 ifndef GTK
 GTK=true
 endif
 
 ifeq ($(GTK), true)
-OBJECTS += src/gtk.o
+OBJECTS += src/ui/gtk.o
 CFLAGS += -DHAS_GTK
 LIBS += gtk+-3.0
 endif

@@ -1,10 +1,10 @@
-#ifndef CFGPRS_H
-#define CFGPRS_H
+#ifndef CONF_FILE_H
+#define CONF_FILE_H
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include "win.h"
+#include <werk/ui/win.h>
 
 typedef struct config_reader ConfigReader;
 typedef void (*option_callback)(ConfigReader *conf, const char *value, void *udata);

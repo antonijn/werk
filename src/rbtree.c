@@ -31,7 +31,7 @@
  * For more information, please refer to <http://unlicense.org/>
  */
 
-#include "rbtree.h"
+#include <werk/rbtree.h>
 
 /* rb_node */
 

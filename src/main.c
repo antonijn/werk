@@ -5,13 +5,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "edit.h"
+#include <werk/edit.h>
 #ifdef HAS_NCURSES
-#include "ncurses.h"
+#include <werk/ui/ncurses.h>
 #endif
 #ifdef HAS_GTK
 #include <gtk/gtk.h>
-#include "gtk.h"
+#include <werk/ui/gtk.h>
 #endif
 
 static const char *ui_mode =

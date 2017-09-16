@@ -8,10 +8,10 @@
 #include <unistd.h>
 #include <unistr.h>
 #include <uniwidth.h>
-#include "cfg.h"
-#include "edit.h"
-#include "mode/mode.h"
-#include "gap.h"
+#include <werk/conf/app.h>
+#include <werk/edit.h>
+#include <werk/mode/mode.h>
+#include <werk/gap.h>
 
 #define CMD_DIALOG_WIDTH 30
 

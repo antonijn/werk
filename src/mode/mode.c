@@ -1,5 +1,5 @@
-#include "../edit.h"
-#include "mode.h"
+#include <werk/edit.h>
+#include <werk/mode/mode.h>
 
 #include <stdlib.h>
 

@@ -1,8 +1,8 @@
-#ifndef CFG_H
-#define CFG_H
+#ifndef CONF_APP_H
+#define CONF_APP_H
 
-#include "cfgprs.h"
-#include "win.h"
+#include <werk/conf/file.h>
+#include <werk/ui/win.h>
 
 #include <stdbool.h>
 

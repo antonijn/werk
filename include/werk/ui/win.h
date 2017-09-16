@@ -1,5 +1,5 @@
-#ifndef WERK_WIN_H
-#define WERK_WIN_H
+#ifndef UI_WIN_H
+#define UI_WIN_H
 
 #include <stdbool.h>
 #include <stddef.h>
