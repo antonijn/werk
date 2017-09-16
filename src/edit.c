@@ -220,6 +220,8 @@ buf_init(Buffer *buf, WerkInstance *werk)
 	buf->eol = werk->cfg.text.default_newline;
 	buf->eol_size = strlen(buf->eol);
 
+	buf->present = undo_tree_init();
+
 	push_select_mode(buf);
 }
 
@@ -248,6 +250,8 @@ buf_destroy(Buffer *buf)
 	rb_tree_dealloc(buf->lo_markers, destroy_node);
 	rb_tree_dealloc(buf->hi_markers, destroy_node);
 
+	undo_tree_destroy(buf->present);
+
 	while (buf->mode)
 		pop_mode(buf);
 }
@@ -255,6 +259,9 @@ buf_destroy(Buffer *buf)
 static int
 buf_read(Buffer *buf, const char *filename)
 {
+	undo_tree_destroy(buf->present);
+	buf->present = undo_tree_init();
+
 	FILE *in = fopen(filename, "rb");
 	if (!in)
 		goto no_such_file;
@@ -635,7 +642,14 @@ buf_delete_selection(Buffer *buf)
 
 	gbuf_offs lofs = marker_offs(buf, left);
 	gbuf_offs rofs = marker_offs(buf, right);
-	gbuf_delete_text(&buf->gbuf, lofs, rofs - lofs);
+
+	gbuf_move_cursor(&buf->gbuf, lofs);
+
+	size_t bytes_removed = rofs - lofs;
+	const char *removed_text = gbuf_get(&buf->gbuf, rofs) - bytes_removed;
+	notify_delete(buf->present, lofs, removed_text, bytes_removed);
+
+	gbuf_delete_text(&buf->gbuf, lofs, bytes_removed);
 
 	buf->sel_finish = *left;
 	buf->sel_start = *left;
@@ -732,6 +746,12 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	gbuf_offs start = left->offset;
 	gbuf_offs stop = right->offset;
 
+	gbuf_move_cursor(&buf->gbuf, start);
+
+	size_t bytes_replaced = stop - start;
+	const char *text_replaced = gbuf_get(&buf->gbuf, stop) - bytes_replaced;
+	notify_delete(buf->present, start, text_replaced, bytes_replaced);
+
 	int old_size = gbuf_len(&buf->gbuf);
 
 	if (buf->lang.name) {
@@ -763,6 +783,8 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	int new_size = gbuf_len(&buf->gbuf);
 	int delta_size = new_size - old_size;
 	gbuf_offs new_finish_ofs = stop + delta_size;
+
+	notify_add(buf->present, start, bytes_replaced + delta_size);
 
 	/* the selection should now be devoid of other markers, so
 	 * the following is valid */
@@ -841,8 +863,11 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 	if (!buf_is_selection_degenerate(buf))
 		return;
 
+	long sel_fin_offs = buf->sel_finish.offset;
+	notify_add(buf->present, sel_fin_offs, len);
+
 	/* sel_finish is always left-to-right, so this is valid */
-	gbuf_insert_text(&buf->gbuf, buf->sel_finish.offset, input, len);
+	gbuf_insert_text(&buf->gbuf, sel_fin_offs, input, len);
 
 	for (const char *stop = input + len;
 	     input != stop;

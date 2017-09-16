@@ -1,12 +1,13 @@
 #ifndef EDIT_H
 #define EDIT_H
 
-#include <werk/conf/app.h>
-#include <werk/conf/file.h>
+#include "conf/app.h"
+#include "conf/file.h"
 #include "gap.h"
-#include <werk/lang.h>
+#include "lang.h"
 #include "rbtree.h"
-#include <werk/ui/win.h>
+#include "undo.h"
+#include "ui/win.h"
 
 /* instance of the editor (possibly containing multiple buffers) */
 typedef struct werk_instance WerkInstance;
@@ -91,6 +92,8 @@ struct buffer {
 	const char *filename;
 
 	Mode *mode;
+
+	UndoTree *present;
 
 	struct {
 		bool active;
