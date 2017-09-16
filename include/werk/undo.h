@@ -3,35 +3,17 @@
 
 #include <stddef.h>
 
-typedef enum {
-	ADDITION,
-	DELETION,
-} ChangeKind;
-
 typedef struct change {
-	ChangeKind kind;
-	void *extended;
 	struct change *next;
-} Change;
-
-typedef struct {
-	Change base;
 
 	long pos;
-
+	/* Text is to be deleted if `text == NULL' */
 	const char *text;
 	size_t size;
-} Addition;
-
-typedef struct {
-	Change base;
-
-	long pos;
-	size_t size;
-} Deletion;
+} Change;
 
 typedef void (*text_adder)(long pos, const char *text, size_t size, void *udata);
-typedef void (*text_deleter)(long pos, size_t size, void *udata);
+typedef void (*text_deleter)(long pos, size_t size, char *copy_deleted_text_here, void *udata);
 
 typedef struct future_node FutureNode;
 
@@ -56,7 +38,10 @@ void undo_tree_destroy(UndoTree *present);
 
 void notify_add(UndoTree *present, long pos, size_t size);
 void notify_delete(UndoTree *present, long pos, const char *text, size_t size);
+
 void commit(UndoTree **present);
+
 void undo(UndoTree **present, text_adder adder, text_deleter deleter, void *udata);
+void redo(UndoTree **present, FutureNode *fut, text_adder adder, text_deleter deleter, void *udata);
 
 #endif

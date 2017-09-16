@@ -32,3 +32,8 @@ void
 undo(UndoTree **present, text_adder adder, text_deleter deleter, void *udata)
 {
 }
+
+void
+redo(UndoTree **present, FutureNode *fut, text_adder adder, text_deleter deleter, void *udata)
+{
+}
