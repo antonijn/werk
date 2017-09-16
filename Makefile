@@ -1,7 +1,7 @@
 TARGET = werk
 
 OBJECTS = src/main.o src/edit.o src/gap.o src/lang.o \
-          src/rbtree.o src/sparsef.o \
+          src/rbtree.o src/sparsef.o src/undo.o \
           src/conf/app.o src/conf/file.o \
           src/mode/mode.o \
           src/ui/ncurses.o
