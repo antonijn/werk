@@ -198,9 +198,6 @@ gbuf_read(GapBuf *gbuf, FILE *in)
 	return 0;
 }
 
-/* Force gap move */
-static void gbuf_move_cursor(GapBuf *buf, gbuf_offs pos);
-
 void
 gbuf_insert_text(GapBuf *buf, gbuf_offs cursor, const char *str, size_t len)
 {
@@ -323,7 +320,7 @@ gbuf_strcpy(GapBuf *buf, char *dest, gbuf_offs offset, size_t len)
 		dest[i] = *gbuf_get(buf, offset + i);
 }
 
-static void
+void
 gbuf_move_cursor(GapBuf *buf, gbuf_offs pos)
 {
 	if (pos == buf->gap_offs)

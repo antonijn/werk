@@ -94,6 +94,11 @@ void gbuf_strcpy(GapBuf *buf, char *dest, gbuf_offs offset, size_t len);
 gbuf_offs gbuf_get_gap_offset(GapBuf *buf);
 
 /*
+ * Manually move buffer gap.
+ */
+void gbuf_move_cursor(GapBuf *buf, gbuf_offs offs);
+
+/*
  * Resize buffer to accomodate `req' characters.
  */
 int gbuf_resize(GapBuf *buf, size_t req);
