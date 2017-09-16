@@ -87,14 +87,11 @@ lang_detect_basename(const char *basename, Lang *result)
 			min = pivot + 1;
 		} else {
 			result->name = suffix_map[pivot][1];
-			break;
+			return 0;
 		}
 	}
 
-	if (!result->name)
-		return -1;
-
-	return 0;
+	return -1;
 }
 
 static int
@@ -125,12 +122,9 @@ lang_detect_shebang(const char *l1, Lang *result)
 			min = pivot + 1;
 		} else {
 			result->name = shebang_map[pivot][1];
-			break;
+			return 0;
 		}
 	}
 
-	if (!result->name)
-		return -1;
-
-	return 0;
+	return -1;
 }
