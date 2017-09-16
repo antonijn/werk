@@ -40,11 +40,11 @@ is currently at ‘^’.
 You press a key to go into “parameter selection mode” (say ‘p’):
 
 	foo = bar(qux(), quux());
-	          ^~~~~
+	          ~~~~^
 You traverse to the next parameter (say ‘.’):
 
 	foo = bar(qux(), quux());
-	                 ^~~~~~
+	                 ~~~~~^
 You press the parameter selection key again:
 
 	foo = bar(qux(), quux());
@@ -64,7 +64,7 @@ Instead of providing a myriad of advanced commands like vim (every key has
 on average more than two functions) or emacs (https://xkcd.com/378/), most
 of werk's commands should be based on navigation, not on actual editing.
 Editing should be done by external programs, through which you can pipe
-selections (akin to vim's “:'<,'>!program-name'” ex-command, but about
+selections (akin to vim's “:'<,'>!program-name” ex-command, but about
 five orders of magnitude less clunky).
 
 The editor would come with a variety of programs with short and sweet
@@ -79,7 +79,7 @@ ex-mode *cough*, in which you can write ‘up’, press enter, and that's it.
 
 There's another program ‘lic’ which simply spits out license text,
 commented in a language of your choice, which you can run at the top
-of your document.  There would be another program 'u', which outputs
+of your document.  There would be another program ‘u’, which outputs
 a Unicode character based on its arguments: ‘u ae’ -> ‘æ’, etc. For
 find/replace there's ‘sed’. You could use ‘fmt’ to format plain text
 documents.
@@ -132,7 +132,7 @@ to be subtle enough in practice [debatable].
 The whole editor should feel intuitive and shouldn't feel like everything
 takes a lot of effort, as is my feeling about vim. One extremely important
 principle is therefore minimising eye movement. This is respresented
-through the "colour change indicating mode switch" idea, and by placing
+through the “colour change indicating mode switch” idea, and by placing
 the command field pop-up as close to the cursor as possible - or at
 least to the place where the user is probably looking [debatable].
 
