@@ -68,10 +68,10 @@ To run:
 
   ~ Selection piping (src/edit.c, src/gap.c)
     ✔ Basic selection piping (Ctrl-D)
+    ✔ Setting SRC_LANG to appropriate programming language string
     ✘ Command error reporting
     ✘ Custom shells (everything uses /bin/sh)
     ✘ Custom PATH (useful for adding text-tools, for instance)
-    ✘ Setting SRC_LANG to appropriate programming language string
     ✘ Setting SRC_INDENT to appropriate indentation string
     ✘ Bash tab completion
 

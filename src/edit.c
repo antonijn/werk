@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unictype.h>
 #include <unigbrk.h>
+#include <unistd.h>
 #include <unistr.h>
 #include <uniwidth.h>
 #include "cfg.h"
@@ -732,7 +733,31 @@ buf_pipe_selection(Buffer *buf, const char *str)
 
 	int old_size = gbuf_len(&buf->gbuf);
 
-	gbuf_pipe(&buf->gbuf, str, start, stop - start);
+	if (buf->lang.name) {
+		int env_len;
+		for (env_len = 0; environ[env_len]; ++env_len)
+			;
+
+		/* to make room for SRC_LANG */
+		int new_env_len = env_len + 1;
+
+		const char **envp = calloc(sizeof(const char *), new_env_len + 1);
+		for (int i = 0; i < env_len; ++i)
+			envp[i] = environ[i];
+
+		char src_lang[] = "SRC_LANG=";
+		char *src_lang_buf = malloc(sizeof(src_lang) + strlen(buf->lang.name));
+		sprintf(src_lang_buf, "%s%s", src_lang, buf->lang.name);
+		envp[new_env_len - 1] = src_lang_buf;
+
+		gbuf_pipe_e(&buf->gbuf, str, envp, start, stop - start);
+
+		free(src_lang_buf);
+		free(envp);
+
+	} else {
+		gbuf_pipe(&buf->gbuf, str, start, stop - start);
+	}
 
 	int new_size = gbuf_len(&buf->gbuf);
 	int delta_size = new_size - old_size;
