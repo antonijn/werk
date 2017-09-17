@@ -92,6 +92,9 @@ sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t
 		case 'z':
 			buf_undo(buf);
 			break;
+		case 'Z':
+			buf_dumb_redo(buf);
+			break;
 		}
 
 		return;

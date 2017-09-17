@@ -715,6 +715,12 @@ buf_undo(Buffer *buf)
 }
 
 void
+buf_dumb_redo(Buffer *buf)
+{
+	redo(buf->present, buf->present->past->futures, adder, deleter, buf);
+}
+
+void
 buf_move_cursor(Buffer *buf, int delta, bool extend)
 {
 	BufferMarker start = buf->sel_start;

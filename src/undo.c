@@ -1,5 +1,7 @@
 #include <werk/undo.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -66,6 +68,40 @@ commit(UndoTree **present)
 	*present = new_pres;
 }
 
+/*
+ * Returns list of Changes required to un-exec
+ */
+static Change *
+exec_changes(Change *changes, text_adder adder, text_deleter deleter, void *udata)
+{
+	Change *result = NULL;
+
+	while (changes) {
+		Change *next = changes->next;
+		changes->next = NULL;
+
+		ChangePos from = changes->from;
+		ChangePos until = changes->until;
+
+		if (changes->text) {
+			adder(from, until, changes->text, udata);
+			free((char *)changes->text);
+			changes->text = NULL;
+		} else {
+			char *new_text = malloc(until.offset - from.offset);
+			deleter(from, until, new_text, udata);
+			changes->text = new_text;
+		}
+
+		changes->next = result;
+		result = changes;
+
+		changes = next;
+	}
+
+	return result;
+}
+
 void
 undo(UndoTree *present, text_adder adder, text_deleter deleter, void *udata)
 {
@@ -79,37 +115,26 @@ undo(UndoTree *present, text_adder adder, text_deleter deleter, void *udata)
 		return;
 
 	/* The undo node becomes a redo node */
-	Change *undo_changes = to_undo->changes;
-	Change *redo_changes = NULL;
-
-	while (undo_changes) {
-		Change *next = undo_changes->next;
-		undo_changes->next = NULL;
-
-		ChangePos from = undo_changes->from;
-		ChangePos until = undo_changes->until;
-
-		if (undo_changes->text) {
-			adder(from, until, undo_changes->text, udata);
-			free((char *)undo_changes->text);
-			undo_changes->text = NULL;
-		} else {
-			char *new_text = malloc(until.offset - from.offset);
-			deleter(from, until, new_text, udata);
-			undo_changes->text = new_text;
-		}
-
-		undo_changes->next = redo_changes;
-		redo_changes = undo_changes;
-
-		undo_changes = next;
-	}
-
-	to_undo->changes = redo_changes;
+	to_undo->changes = exec_changes(to_undo->changes, adder, deleter, udata);
 	present->past = to_undo->past;
 }
 
 void
 redo(UndoTree *present, UndoTree *go_here, text_adder adder, text_deleter deleter, void *udata)
 {
+	UndoTree *go_here_parent = present->past;
+	assert(go_here_parent != NULL);
+
+	bool is_valid_go_here = false;
+	for (UndoTree *fut = go_here_parent->futures; fut; fut = fut->next_future) {
+		if (fut == go_here) {
+			is_valid_go_here = true;
+			break;
+		}
+	}
+
+	assert(is_valid_go_here);
+
+	go_here->changes = exec_changes(go_here->changes, adder, deleter, udata);
+	present->past = go_here;
 }

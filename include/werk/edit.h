@@ -203,6 +203,7 @@ void buf_delete_selection(Buffer *buf);
 
 void buf_commit(Buffer *buf);
 void buf_undo(Buffer *buf);
+void buf_dumb_redo(Buffer *buf);
 
 /*
  * Move cursor by `delta' graphemes. Positive `delta' means movement
