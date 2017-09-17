@@ -51,6 +51,9 @@ static void buf_detect_newline(Buffer *buf);
  */
 static void buf_detect_lang(Buffer *buf);
 
+static void buf_insert_text_no_notify(Buffer *buf, const char *input, size_t len);
+static void buf_delete_selection_no_notify(Buffer *buf);
+
 /*
  * Counts the number of newlines currently in the selection.
  * NOTE: Quite expensive!
@@ -633,10 +636,6 @@ marker_sort_pair(BufferMarker *a, BufferMarker *b, BufferMarker **left, BufferMa
 void
 buf_delete_selection(Buffer *buf)
 {
-	buf_clear_sel_of_markers(buf);
-
-	int newlines_removed = buf_count_sel_newlines(buf);
-
 	BufferMarker *left, *right;
 	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
 
@@ -652,7 +651,23 @@ buf_delete_selection(Buffer *buf)
 	              marker_to_change_pos(right),
 	              removed_text);
 
-	gbuf_delete_text(&buf->gbuf, lofs, bytes_removed);
+	buf_delete_selection_no_notify(buf);
+}
+
+static void
+buf_delete_selection_no_notify(Buffer *buf)
+{
+	buf_clear_sel_of_markers(buf);
+
+	int newlines_removed = buf_count_sel_newlines(buf);
+
+	BufferMarker *left, *right;
+	marker_sort_pair(&buf->sel_start, &buf->sel_finish, &left, &right);
+
+	gbuf_offs lofs = marker_offs(buf, left);
+	gbuf_offs rofs = marker_offs(buf, right);
+
+	gbuf_delete_text(&buf->gbuf, lofs, rofs - lofs);
 
 	buf->sel_finish = *left;
 	buf->sel_start = *left;
@@ -660,6 +675,43 @@ buf_delete_selection(Buffer *buf)
 	buf->lines -= newlines_removed;
 
 	buf_recalc_hi_marker_cols(buf);
+}
+
+void
+buf_commit(Buffer *buf)
+{
+	commit(&buf->present);
+}
+
+static void
+adder(ChangePos from, ChangePos until, const char *text, void *udata)
+{
+	Buffer *buf = udata;
+
+	BufferMarker from_mk = marker_from_change_pos(from);
+
+	buf_set_sel(buf, &from_mk, &from_mk);
+	buf_insert_text_no_notify(buf, text, until.offset - from_mk.offset);
+	buf_set_sel(buf, &from_mk, NULL);
+}
+
+static void
+deleter(ChangePos from, ChangePos until, char *copy_here, void *udata)
+{
+	Buffer *buf = udata;
+
+	BufferMarker from_mk = marker_from_change_pos(from);
+	BufferMarker until_mk = marker_from_change_pos(until);
+
+	buf_set_sel(buf, &from_mk, &until_mk);
+	gbuf_strcpy(&buf->gbuf, copy_here, from.offset, until.offset - from.offset);
+	buf_delete_selection_no_notify(buf);
+}
+
+void
+buf_undo(Buffer *buf)
+{
+	undo(buf->present, adder, deleter, buf);
 }
 
 void
@@ -864,9 +916,23 @@ buf_insert_input_string(Buffer *buf, const char *input, size_t len)
 void
 buf_insert_text(Buffer *buf, const char *input, size_t len)
 {
+	if (!buf_is_selection_degenerate(buf))
+		return;
+
+	BufferMarker prev_finish = buf->sel_finish;
+	buf_insert_text_no_notify(buf, input, len);
+	BufferMarker new_finish = buf->sel_finish;
+
+	notify_add(buf->present,
+	           marker_to_change_pos(&prev_finish),
+	           marker_to_change_pos(&new_finish));
+}
+
+static void
+buf_insert_text_no_notify(Buffer *buf, const char *input, size_t len)
+{
 	/* NOTE 1: a buf_insert_text() never causes _any_ marker
 	 * traversals (a marker going from hi to lo or vice versa) */
-
 
 	if (!buf_is_selection_degenerate(buf))
 		return;
@@ -884,10 +950,6 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 
 	int added_newlines = buf_count_sel_newlines(buf);
 	buf->lines += added_newlines;
-
-	notify_add(buf->present,
-	           marker_to_change_pos(&buf->sel_start),
-	           marker_to_change_pos(&buf->sel_finish));
 
 	/* make selection degenerate */
 	buf_move_cursor(buf, 0, false);

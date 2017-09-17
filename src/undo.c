@@ -58,10 +58,10 @@ commit(UndoTree **present)
 	new_pres->past = prev_pres;
 
 	UndoTree *past = prev_pres->past;
-	if (past) {
-		prev_pres->next_future = past->futures;
-		past->futures = prev_pres;
-	}
+	assert(past != NULL);
+
+	prev_pres->next_future = past->futures;
+	past->futures = prev_pres;
 
 	*present = new_pres;
 }

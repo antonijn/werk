@@ -48,6 +48,11 @@ marker_to_change_pos(const BufferMarker *marker)
 {
 	return (ChangePos){ .offset = marker->offset, .line = marker->line, .col = marker->col };
 }
+static inline BufferMarker
+marker_from_change_pos(ChangePos pos)
+{
+	return (BufferMarker){ .rtol = 0, .offset = pos.offset, .line = pos.line, .col = pos.col };
+}
 
 struct mode {
 	void (*on_key_press)(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
@@ -195,6 +200,9 @@ void buf_insert_input_string(Buffer *buf, const char *input, size_t len);
 void buf_insert_text(Buffer *buf, const char *input, size_t len);
 
 void buf_delete_selection(Buffer *buf);
+
+void buf_commit(Buffer *buf);
+void buf_undo(Buffer *buf);
 
 /*
  * Move cursor by `delta' graphemes. Positive `delta' means movement

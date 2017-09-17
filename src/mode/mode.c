@@ -89,6 +89,9 @@ sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t
 		case 's':
 			buf_save(buf);
 			break;
+		case 'z':
+			buf_undo(buf);
+			break;
 		}
 
 		return;
@@ -107,11 +110,13 @@ sm_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t
 
 	case 'c':
 		buf_delete_selection(buf);
+		buf_commit(buf);
 		push_insert_mode(buf);
 		break;
 
 	case 'd':
 		buf_delete_selection(buf);
+		buf_commit(buf);
 		break;
 
 	case 'L':
@@ -207,6 +212,7 @@ im_on_key_press(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t
 		break;
 
 	case '[':
+		buf_commit(buf);
 		pop_mode(buf);
 		break;
 
