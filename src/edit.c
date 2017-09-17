@@ -647,7 +647,10 @@ buf_delete_selection(Buffer *buf)
 
 	size_t bytes_removed = rofs - lofs;
 	const char *removed_text = gbuf_get(&buf->gbuf, rofs) - bytes_removed;
-	notify_delete(buf->present, lofs, removed_text, bytes_removed);
+	notify_delete(buf->present,
+	              marker_to_change_pos(left),
+	              marker_to_change_pos(right),
+	              removed_text);
 
 	gbuf_delete_text(&buf->gbuf, lofs, bytes_removed);
 
@@ -750,7 +753,10 @@ buf_pipe_selection(Buffer *buf, const char *str)
 
 	size_t bytes_replaced = stop - start;
 	const char *text_replaced = gbuf_get(&buf->gbuf, stop) - bytes_replaced;
-	notify_delete(buf->present, start, text_replaced, bytes_replaced);
+	notify_delete(buf->present,
+	              marker_to_change_pos(left),
+	              marker_to_change_pos(right),
+	              text_replaced);
 
 	int old_size = gbuf_len(&buf->gbuf);
 
@@ -784,8 +790,6 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	int delta_size = new_size - old_size;
 	gbuf_offs new_finish_ofs = stop + delta_size;
 
-	notify_add(buf->present, start, bytes_replaced + delta_size);
-
 	/* the selection should now be devoid of other markers, so
 	 * the following is valid */
 
@@ -794,6 +798,10 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	while (right->offset != new_finish_ofs)
 		if (marker_next(buf, NULL, NULL, right) == -1)
 			break;
+
+	notify_add(buf->present,
+	           marker_to_change_pos(left),
+	           marker_to_change_pos(right));
 
 	int post_pipe_newlines = buf_count_sel_newlines(buf);
 
@@ -863,11 +871,8 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 	if (!buf_is_selection_degenerate(buf))
 		return;
 
-	long sel_fin_offs = buf->sel_finish.offset;
-	notify_add(buf->present, sel_fin_offs, len);
-
 	/* sel_finish is always left-to-right, so this is valid */
-	gbuf_insert_text(&buf->gbuf, sel_fin_offs, input, len);
+	gbuf_insert_text(&buf->gbuf, buf->sel_finish.offset, input, len);
 
 	for (const char *stop = input + len;
 	     input != stop;
@@ -879,6 +884,10 @@ buf_insert_text(Buffer *buf, const char *input, size_t len)
 
 	int added_newlines = buf_count_sel_newlines(buf);
 	buf->lines += added_newlines;
+
+	notify_add(buf->present,
+	           marker_to_change_pos(&buf->sel_start),
+	           marker_to_change_pos(&buf->sel_finish));
 
 	/* make selection degenerate */
 	buf_move_cursor(buf, 0, false);

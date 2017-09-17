@@ -43,6 +43,12 @@ typedef struct {
 int cmp_buffer_markers(const BufferMarker *a, const BufferMarker *b);
 int cmp_buffer_markers_rbtree(struct rb_tree *tree, struct rb_node *a, struct rb_node *b);
 
+static inline ChangePos
+marker_to_change_pos(const BufferMarker *marker)
+{
+	return (ChangePos){ .offset = marker->offset, .line = marker->line, .col = marker->col };
+}
+
 struct mode {
 	void (*on_key_press)(Buffer *buf, Mode *mode, KeyMods mods, const char *input, size_t len);
 	void (*on_enter_press)(Buffer *buf, Mode *mode, KeyMods mods);
