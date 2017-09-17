@@ -797,6 +797,8 @@ buf_set_sel(Buffer *buf, const BufferMarker *start, const BufferMarker *finish)
 void
 buf_pipe_selection(Buffer *buf, const char *str)
 {
+	commit(&buf->present);
+
 	buf_clear_sel_of_markers(buf);
 
 	int pre_pipe_newlines = buf_count_sel_newlines(buf);
@@ -864,6 +866,8 @@ buf_pipe_selection(Buffer *buf, const char *str)
 	int post_pipe_newlines = buf_count_sel_newlines(buf);
 
 	buf->lines += post_pipe_newlines - pre_pipe_newlines;
+
+	commit(&buf->present);
 }
 
 BufferMarker *
