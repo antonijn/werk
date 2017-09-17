@@ -32,10 +32,11 @@ To run:
     ✔ Customizable tab behaviour {text.indentation}
     ✔ Customizable default newline {text.default-newline = unix/dos}
     ✔ Automatic newline detection
+    ✔ Undo/redo
+      ✘ Cycle through different redos
     ✘ Recognize indentation on newline
     ✘ Insert matching bracket
     ✘ Copy/paste
-    ✘ Undo/redo
 
   ~ Navigation (src/edit.c)
     ✔ General selection mode (Ctrl-[)
