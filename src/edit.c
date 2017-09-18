@@ -1003,25 +1003,21 @@ buf_calc_vp_origin(Buffer *buf, int wlines, int hlines)
 		buf->vp_orig_col += (dorig_col - vw);
 
 	if (dorig_line < 0) {
-		BufferMarker new_orig = { 0 };
-		new_orig.offset = buf->vp_first_line;
+		BufferMarker new_orig = buf->sel_finish;
+		marker_start_of_line(buf, &new_orig);
 
-		for (int i = 0; i < -dorig_line; ++i) {
+		buf->vp_orig_line = new_orig.line;
+		buf->vp_first_line = new_orig.offset;
+	} else if (dorig_line >= vh) {
+		BufferMarker new_orig = buf->sel_finish;
+		marker_start_of_line(buf, &new_orig);
+
+		for (int i = 0; i < vh - 1; ++i) {
 			marker_prev(buf, NULL, NULL, &new_orig);
 			marker_start_of_line(buf, &new_orig);
 		}
 
-		buf->vp_orig_line += dorig_line;
-		buf->vp_first_line = new_orig.offset;
-	} else if (dorig_line >= vh) {
-		BufferMarker new_orig = { 0 };
-		new_orig.offset = buf->vp_first_line;
-
-		int line_delta = (dorig_line - vh) + 1;
-		for (int i = 0; i < line_delta; ++i)
-			marker_next_line(buf, &new_orig);
-
-		buf->vp_orig_line += line_delta;
+		buf->vp_orig_line = new_orig.line;
 		buf->vp_first_line = new_orig.offset;
 	}
 }
