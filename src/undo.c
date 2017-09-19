@@ -28,6 +28,58 @@ notify_add(UndoTree *present, ChangePos from, ChangePos until)
 	notify_delete(present, from, until, NULL);
 }
 
+/*
+ * Merges changes if possible (to aid memory consumption)
+ * Very simplistic... Will get around to updating once the ChangePos system
+ * becomes less complicated (it ought to be simply an offset, really)
+ */
+static void
+undo_tree_add_change(UndoTree *present, Change *ch)
+{
+	Change *last = present->changes;
+	if (!last)
+		goto simple;
+
+	bool ch_has_text = ch->text;
+	bool last_has_text = last->text;
+
+	if (ch_has_text != last_has_text)
+		goto simple;
+
+	if (ch->until.offset == last->from.offset) {
+		present->changes = ch;
+		ch->next = last->next;
+		last->next = NULL;
+
+		Change *temp = last;
+		last = ch;
+		ch = temp;
+	}
+
+	if (last->until.offset == ch->from.offset) {
+		if (ch_has_text) {
+			size_t last_size = last->until.offset - last->from.offset;
+			size_t ch_size = ch->until.offset - ch->from.offset;
+			char *merged = malloc(last_size + ch_size);
+			memcpy(merged, last->text, last_size);
+			memcpy(merged + last_size, ch->text, ch_size);
+			free((char *)last->text);
+			free((char *)ch->text);
+			ch->text = merged;
+		}
+
+		ch->from = last->from;
+		ch->next = last->next;
+		present->changes = ch;
+		free(last);
+		return;
+	}
+
+simple:
+	present->changes = ch;
+	ch->next = last;
+}
+
 void
 notify_delete(UndoTree *present, ChangePos from, ChangePos until, const char *text)
 {
@@ -43,8 +95,7 @@ notify_delete(UndoTree *present, ChangePos from, ChangePos until, const char *te
 		memcpy((char *)ch->text, text, size);
 	}
 
-	ch->next = present->changes;
-	present->changes = ch;
+	undo_tree_add_change(present, ch);
 }
 
 void
