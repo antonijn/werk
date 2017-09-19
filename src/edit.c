@@ -717,6 +717,9 @@ buf_undo(Buffer *buf)
 void
 buf_dumb_redo(Buffer *buf)
 {
+	if (!buf->present->past->futures)
+		return;
+
 	redo(buf->present, buf->present->past->futures, adder, deleter, buf);
 }
 
